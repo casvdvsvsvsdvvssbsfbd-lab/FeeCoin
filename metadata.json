@@ -1,0 +1,6 @@
+{
+  "name": "Watch-to-Earn & Offerwall Platform",
+  "description": "Premium DEX Arbitrage & Watch-to-Earn Mini App with live arbitrage simulators, Web3 trivia, multiplier boosters, daily check-ins, and high-fidelity transaction trackers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

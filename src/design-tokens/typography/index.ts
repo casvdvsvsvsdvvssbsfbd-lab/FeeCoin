@@ -1,0 +1,11 @@
+export { fontFamily } from './font-family'
+export { fontSize } from './font-size'
+export { fontWeight } from './font-weight'
+export { lineHeight } from './line-height'
+export { letterSpacing } from './letter-spacing'
+
+export type { FontFamily } from './font-family'
+export type { FontSize } from './font-size'
+export type { FontWeight } from './font-weight'
+export type { LineHeight } from './line-height'
+export type { LetterSpacing } from './letter-spacing'

@@ -1,0 +1,1709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Watch-to-Earn Mini App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* ===== RESET ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* ===== CSS VARIABLES ===== */
+        :root {
+            /* Backgrounds with DEPTH */
+            --bg-primary: #050810;
+            --bg-secondary: #0d1117;
+            --bg-card: linear-gradient(135deg, #1a1f35 0%, #0f1419 100%);
+            --bg-card-solid: #1a1f35;
+            --bg-elevated: #1e2538;
+
+            /* Accents with GLOW */
+            --accent-gold: #f0b90b;
+            --accent-gold-light: #ffd54f;
+            --accent-gold-glow: rgba(240, 185, 11, 0.4);
+            --accent-green: #00e676;
+            --accent-green-glow: rgba(0, 230, 118, 0.3);
+            --accent-blue: #2979ff;
+            --accent-blue-glow: rgba(41, 121, 255, 0.4);
+            --accent-purple: #9c27b0;
+            --accent-red: #ff2d55;
+
+            /* Text */
+            --text-primary: #ffffff;
+            --text-secondary: #8b92a8;
+            --text-muted: #5a6072;
+
+            /* Borders with SUBTLETY */
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-gold: rgba(240, 185, 11, 0.3);
+
+            /* Shadows with DEPTH */
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+            --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+            --shadow-gold: 0 0 30px rgba(240, 185, 11, 0.25);
+            --shadow-blue: 0 0 20px rgba(41, 121, 255, 0.3);
+        }
+
+        /* ===== BASE ===== */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            min-height: 100dvh;
+            overflow-x: hidden;
+        }
+
+        body {
+            background: #050810;
+            color: #ffffff;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* ===== APP CONTAINER ===== */
+        .app-container {
+            max-width: 430px;
+            margin: 0 auto;
+            min-height: 100dvh;
+            position: relative;
+            background: radial-gradient(ellipse at 50% 0%, #0d1520 0%, #050810 70%);
+            padding-bottom: 80px;
+        }
+
+        /* ===== AMBIENT GLOW ORBS ===== */
+        .app-container::before {
+            content: '';
+            position: fixed;
+            top: -20%;
+            left: -20%;
+            width: 60%;
+            height: 60%;
+            background: radial-gradient(circle, rgba(240,185,11,0.04) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .app-container::after {
+            content: '';
+            position: fixed;
+            bottom: -10%;
+            right: -10%;
+            width: 50%;
+            height: 50%;
+            background: radial-gradient(circle, rgba(41,121,255,0.03) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ===== STICKY HEADER ===== */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(5, 8, 16, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-light));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            color: #000;
+            box-shadow: 0 0 15px var(--accent-gold-glow);
+        }
+
+        .user-wallet {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .settings-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .settings-btn:active {
+            transform: scale(0.95);
+            background: var(--accent-gold);
+        }
+
+        /* ===== MAIN BALANCE CARD ===== */
+        .balance-card {
+            margin: 20px 16px;
+            padding: 28px 24px;
+            background: linear-gradient(135deg, #1a1f35 0%, #0f1419 100%);
+            border-radius: 24px;
+            border: 1px solid var(--border-gold);
+            box-shadow: var(--shadow-gold), inset 0 1px 0 rgba(255,255,255,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Gold shimmer effect */
+        .balance-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(
+                45deg,
+                transparent 30%,
+                rgba(240, 185, 11, 0.1) 50%,
+                transparent 70%
+            );
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%) translateY(-100%); }
+            100% { transform: translateX(100%) translateY(100%); }
+        }
+
+        .balance-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .balance-amount {
+            font-size: 42px;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -1px;
+            text-shadow: 0 0 20px var(--accent-gold-glow);
+            animation: goldPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes goldPulse {
+            0%, 100% { text-shadow: 0 0 20px var(--accent-gold-glow); }
+            50% { text-shadow: 0 0 30px var(--accent-gold-glow), 0 0 40px var(--accent-gold-glow); }
+        }
+
+        .balance-currency {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .coin-icon {
+            width: 20px;
+            height: 20px;
+            background: radial-gradient(circle, var(--accent-gold-light), var(--accent-gold));
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent-gold-glow);
+        }
+
+        .currency-text {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent-gold);
+        }
+
+        .balance-usd {
+            font-size: 15px;
+            color: var(--accent-green);
+            margin-top: 12px;
+            font-weight: 600;
+        }
+
+        .withdraw-btn {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid var(--accent-gold);
+            border-radius: 20px;
+            color: var(--accent-gold);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .withdraw-btn:active {
+            background: var(--accent-gold);
+            color: #000;
+            transform: scale(0.95);
+        }
+
+        /* ===== QUICK ACTIONS ROW ===== */
+        .quick-actions {
+            display: flex;
+            gap: 12px;
+            padding: 0 16px;
+            margin-bottom: 28px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 20px 12px;
+            border-radius: 18px;
+            border: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .action-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            opacity: 0.15;
+            transition: opacity 0.2s;
+        }
+
+        .action-btn:active {
+            transform: scale(0.95);
+        }
+
+        .action-btn:active::before {
+            opacity: 0.25;
+        }
+
+        /* Video button - Blue gradient */
+        .action-btn.video {
+            background: linear-gradient(135deg, rgba(41, 121, 255, 0.2), rgba(0, 176, 255, 0.1));
+        }
+        .action-btn.video::before {
+            background: linear-gradient(135deg, var(--accent-blue), #00b0ff);
+        }
+        .action-btn.video .action-icon {
+            color: var(--accent-blue);
+            text-shadow: 0 0 15px var(--accent-blue-glow);
+        }
+
+        /* Daily bonus - Purple gradient */
+        .action-btn.bonus {
+            background: linear-gradient(135deg, rgba(156, 39, 176, 0.2), rgba(186, 104, 200, 0.1));
+        }
+        .action-btn.bonus::before {
+            background: linear-gradient(135deg, var(--accent-purple), #ba68c8);
+        }
+        .action-btn.bonus .action-icon {
+            color: var(--accent-purple);
+            text-shadow: 0 0 15px rgba(156, 39, 176, 0.5);
+        }
+
+        /* Invite - Green gradient */
+        .action-btn.invite {
+            background: linear-gradient(135deg, rgba(0, 230, 118, 0.2), rgba(0, 200, 83, 0.1));
+        }
+        .action-btn.invite::before {
+            background: linear-gradient(135deg, var(--accent-green), #00c853);
+        }
+        .action-btn.invite .action-icon {
+            color: var(--accent-green);
+            text-shadow: 0 0 15px var(--accent-green-glow);
+        }
+
+        .action-icon {
+            font-size: 28px;
+            z-index: 1;
+        }
+
+        .action-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            z-index: 1;
+        }
+
+        /* ===== TODAY'S TASKS SECTION ===== */
+        .tasks-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            margin-bottom: 12px;
+        }
+
+        .tasks-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .tasks-progress-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .progress-bar-container {
+            height: 6px;
+            background: var(--bg-elevated);
+            border-radius: 3px;
+            margin: 0 16px 16px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 60%;
+            background: linear-gradient(90deg, var(--accent-green), #00c853);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        /* ===== TASK LIST (Premium Depth) ===== */
+        .task-list {
+            padding-bottom: 8px;
+        }
+
+        .task-card {
+            background: linear-gradient(145deg, rgba(26, 31, 53, 0.9) 0%, rgba(15, 20, 25, 0.95) 100%);
+            border-radius: 18px;
+            padding: 18px 16px;
+            margin: 0 16px 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s ease, box-shadow 0.2s ease, border-color 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .task-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+        }
+
+        .task-card:active {
+            background: linear-gradient(145deg, rgba(30, 37, 56, 0.95) 0%, rgba(15, 20, 25, 1) 100%);
+            transform: scale(0.97);
+            box-shadow: var(--shadow-md);
+        }
+
+        .task-card.completed {
+            border-color: var(--accent-green);
+            box-shadow: 0 0 20px rgba(0, 230, 118, 0.1);
+        }
+
+        .task-card .checkmark-bounce {
+            animation: bounce 0.4s ease;
+        }
+
+        .task-icon-circle {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            position: relative;
+        }
+
+        .task-icon-circle::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .task-icon-circle.gradient-blue {
+            background: linear-gradient(135deg, #2979ff, #1565c0);
+            box-shadow: 0 4px 12px rgba(41, 121, 255, 0.3);
+        }
+
+        .task-icon-circle.gradient-purple {
+            background: linear-gradient(135deg, #7c4dff, #536dfe);
+            box-shadow: 0 4px 12px rgba(124, 77, 255, 0.3);
+        }
+
+        .task-icon-circle.gradient-orange {
+            background: linear-gradient(135deg, #ff6d00, #ff9100);
+            box-shadow: 0 4px 12px rgba(255, 109, 0, 0.3);
+        }
+
+        .task-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .task-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 3px;
+            letter-spacing: 0.2px;
+        }
+
+        .task-subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .task-right {
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .task-reward {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--accent-gold-light);
+            margin-bottom: 5px;
+            white-space: nowrap;
+            text-shadow: 0 0 10px rgba(240, 185, 11, 0.2);
+        }
+
+        .task-badge {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 700;
+            color: #ffffff;
+            background: linear-gradient(135deg, var(--accent-blue), #1565c0);
+            padding: 3px 10px;
+            border-radius: 20px;
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+            box-shadow: 0 2px 8px rgba(41, 121, 255, 0.3);
+        }
+
+        /* ===== BOTTOM NAVIGATION (Premium Glass) ===== */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 430px;
+            background: rgba(13, 17, 23, 0.95);
+            backdrop-filter: blur(20px) saturate(1.4);
+            -webkit-backdrop-filter: blur(20px) saturate(1.4);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 8px 0;
+            padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+            display: flex;
+            z-index: 200;
+        }
+
+        .bottom-nav::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 15%;
+            right: 15%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(240, 185, 11, 0.1), transparent);
+        }
+
+        .nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 0 4px;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.15s;
+            border: none;
+            background: none;
+            font-family: inherit;
+            position: relative;
+        }
+
+        .nav-item:active {
+            opacity: 0.7;
+            transform: scale(0.92);
+        }
+
+        .nav-item svg {
+            display: block;
+            transition: transform 0.2s;
+        }
+
+        .nav-item.active svg {
+            transform: translateY(-2px);
+        }
+
+        .nav-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 0.2px;
+            transition: color 0.2s;
+        }
+
+        .nav-item.active .nav-label {
+            color: var(--accent-gold);
+        }
+
+        /* ===== KEYFRAME ANIMATIONS ===== */
+        @keyframes goldPulse {
+            0%, 100% { text-shadow: 0 0 10px rgba(240,185,11,0.3); }
+            50% { text-shadow: 0 0 20px rgba(240,185,11,0.6); }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* ===== SCREEN MANAGEMENT ===== */
+        .screen {
+            display: none;
+        }
+        .screen.active {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        /* ===== TASK DETAIL SCREEN ===== */
+        .task-detail-top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 16px;
+            position: relative;
+        }
+
+        .back-btn {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s ease, box-shadow 0.2s ease;
+        }
+
+        .back-btn:active {
+            background: var(--bg-elevated);
+            transform: translateY(-50%) scale(0.92);
+        }
+
+        .task-detail-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* ===== VIDEO PLAYER ===== */
+        .video-container {
+            position: relative;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            border-radius: 16px;
+            margin: 16px;
+            overflow: hidden;
+        }
+
+        .video-placeholder {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1f35 0%, #0a0e1a 50%, #1a1f35 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .video-placeholder svg {
+            opacity: 0.3;
+        }
+
+        /* ===== COUNTDOWN OVERLAY ===== */
+        .countdown-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        .countdown-circle {
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+
+        .countdown-circle svg {
+            transform: rotate(-90deg);
+        }
+
+        .countdown-circle-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 4;
+        }
+
+        .countdown-circle-progress {
+            fill: none;
+            stroke: var(--accent-gold);
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-dasharray: 226.19;
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 1s linear;
+        }
+
+        .countdown-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 22px;
+            font-weight: 800;
+            color: #ffffff;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ===== SKIP BADGE ===== */
+        .skip-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+
+        .skip-badge.active {
+            color: #ffffff;
+            background: rgba(0, 0, 0, 0.8);
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        /* ===== TASK INFO ===== */
+        .task-detail-info {
+            padding: 0 16px;
+        }
+
+        .task-detail-info h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .task-detail-info p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* ===== REWARD BREAKDOWN ===== */
+        .reward-card {
+            background: var(--bg-card);
+            border-radius: 14px;
+            padding: 16px;
+            margin: 16px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .reward-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 0;
+        }
+
+        .reward-row-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .reward-row-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .reward-row-value.green {
+            color: var(--accent-green);
+        }
+
+        .reward-divider {
+            height: 1px;
+            background: var(--border-subtle);
+            margin: 8px 0;
+        }
+
+        .reward-row-total {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 0;
+        }
+
+        .reward-row-total .reward-row-label {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .reward-row-total .reward-row-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent-gold);
+        }
+
+        /* ===== ACTION BUTTON ===== */
+        .action-btn {
+            display: block;
+            width: calc(100% - 32px);
+            margin: 16px;
+            height: 56px;
+            border-radius: 14px;
+            border: none;
+            font-family: inherit;
+            font-size: 16px;
+            font-weight: 700;
+            color: #ffffff;
+            cursor: pointer;
+            transition: transform 0.15s, opacity 0.2s;
+        }
+
+        .action-btn:active {
+            transform: scale(0.98);
+        }
+
+        .action-btn.start {
+            background: linear-gradient(135deg, var(--accent-blue), #00b0ff);
+            box-shadow: 0 4px 15px rgba(41, 121, 255, 0.4);
+        }
+
+        .action-btn.claim {
+            background: linear-gradient(135deg, var(--accent-green), #00c853);
+            box-shadow: 0 4px 15px rgba(0, 230, 118, 0.4);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ===== WITHDRAWAL SCREEN ===== */
+        .withdraw-balance-section {
+            text-align: center;
+            padding: 24px 16px 16px;
+        }
+
+        .withdraw-balance-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .withdraw-balance-amount {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .withdraw-balance-usd {
+            font-size: 16px;
+            color: var(--accent-green);
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+
+        .withdraw-min-badge {
+            display: inline-block;
+            font-size: 11px;
+            color: var(--text-secondary);
+            background: var(--bg-elevated);
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .withdraw-methods {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px;
+        }
+
+        .withdraw-method-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .withdraw-method-card:active {
+            border-color: var(--accent-gold);
+        }
+
+        .withdraw-method-card.selected {
+            border-color: var(--accent-gold);
+            box-shadow: var(--shadow-gold);
+        }
+
+        .withdraw-method-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .withdraw-method-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .withdraw-method-icon.gold-bg {
+            background: rgba(240, 185, 11, 0.15);
+        }
+
+        .withdraw-method-icon.blue-bg {
+            background: rgba(41, 121, 255, 0.15);
+        }
+
+        .withdraw-method-icon.cyan-bg {
+            background: rgba(0, 230, 118, 0.15);
+        }
+
+        .withdraw-method-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .withdraw-method-details {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .withdraw-method-right {
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .withdraw-method-fee {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .withdraw-method-time {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .withdraw-recommended-badge {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 700;
+            color: #ffffff;
+            background: var(--accent-green);
+            padding: 2px 6px;
+            border-radius: 6px;
+            margin-top: 4px;
+        }
+
+        /* ===== WITHDRAWAL FORM ===== */
+        .withdraw-form {
+            padding: 0 16px;
+            display: none;
+        }
+
+        .withdraw-form.visible {
+            display: block;
+        }
+
+        .withdraw-input-group {
+            margin-bottom: 14px;
+        }
+
+        .withdraw-input-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        .withdraw-max-btn {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent-gold);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .withdraw-max-btn:active {
+            background: rgba(240, 185, 11, 0.15);
+        }
+
+        .withdraw-input {
+            width: 100%;
+            height: 48px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 0 14px;
+            font-family: inherit;
+            font-size: 15px;
+            color: var(--text-primary);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .withdraw-input:focus {
+            border-color: var(--accent-gold);
+        }
+
+        .withdraw-input::placeholder {
+            color: rgba(139, 146, 168, 0.5);
+        }
+
+        .withdraw-security-note {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            margin-bottom: 16px;
+        }
+
+        .withdraw-security-note svg {
+            flex-shrink: 0;
+        }
+
+        .withdraw-submit-btn {
+            display: block;
+            width: 100%;
+            height: 56px;
+            border-radius: 14px;
+            border: none;
+            font-family: inherit;
+            font-size: 16px;
+            font-weight: 700;
+            color: #ffffff;
+            background: linear-gradient(135deg, var(--accent-green), #00c853);
+            box-shadow: 0 4px 15px rgba(0, 230, 118, 0.3);
+            cursor: pointer;
+            transition: transform 0.15s, opacity 0.2s;
+        }
+
+        .withdraw-submit-btn:active {
+            transform: scale(0.98);
+        }
+
+        .withdraw-submit-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+    </style>
+    <script>
+        // Telegram WebApp initialization
+        try {
+            if (window.Telegram?.WebApp) {
+                Telegram.WebApp.ready();
+                Telegram.WebApp.expand();
+                Telegram.WebApp.setHeaderColor('#0a0e1a');
+                Telegram.WebApp.setBackgroundColor('#0a0e1a');
+            }
+        } catch (e) {
+            console.warn('Telegram WebApp not available:', e);
+        }
+    </script>
+</head>
+<body>
+    <div class="app-container">
+
+        <!-- ===== HOME SCREEN ===== -->
+        <div class="screen active" id="homeScreen">
+
+            <!-- ===== STICKY HEADER ===== -->
+            <header class="header">
+                <div class="user-info">
+                    <div class="avatar">T</div>
+                    <span class="user-wallet">Tx24...</span>
+                </div>
+                <button class="settings-btn" aria-label="Settings">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b92a8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+            </header>
+
+            <!-- ===== MAIN BALANCE CARD ===== -->
+            <div class="balance-card">
+                <button class="withdraw-btn" id="withdrawBtn">Yechib olish</button>
+                <div class="balance-label">Umumiy Balans</div>
+                <div class="balance-amount" id="balanceAmount">154,490,751</div>
+                <div class="balance-currency">
+                    <div class="coin-icon"></div>
+                    <span class="currency-text">FEE</span>
+                </div>
+                <div class="balance-usd">≈ $154.49 USD</div>
+            </div>
+
+            <!-- ===== QUICK ACTIONS ROW ===== -->
+            <div class="quick-actions">
+                <button class="quick-action-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <rect x="2" y="4" width="20" height="16" rx="3" stroke="#f0b90b" stroke-width="1.5"/>
+                        <polygon points="10,8 16,12 10,16" fill="#f0b90b"/>
+                    </svg>
+                    <span>Video</span>
+                </button>
+                <button class="quick-action-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <rect x="3" y="5" width="18" height="14" rx="3" stroke="#00e676" stroke-width="1.5"/>
+                        <path d="M12 8v8M8 12h8" stroke="#00e676" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M7 19v2M17 19v2" stroke="#00e676" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    <span>Kunlik Bonus</span>
+                </button>
+                <button class="quick-action-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="#2979ff" stroke-width="1.5" stroke-linecap="round"/>
+                        <circle cx="9" cy="7" r="4" stroke="#2979ff" stroke-width="1.5"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="#2979ff" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    <span>Taklif Qilish</span>
+                </button>
+            </div>
+
+            <!-- ===== TODAY'S TASKS SECTION ===== -->
+            <div class="tasks-header">
+                <span class="tasks-title">Bugungi Vazifalar</span>
+                <span class="tasks-progress-text">3/5 bajarildi</span>
+            </div>
+
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill"></div>
+            </div>
+
+            <!-- ===== TASK LIST ===== -->
+            <div class="task-list" id="taskList"></div>
+
+        </div>
+
+        <!-- ===== TASK DETAIL SCREEN ===== -->
+        <div class="screen" id="taskDetailScreen">
+
+            <!-- Top Bar -->
+            <div class="task-detail-top-bar">
+                <button class="back-btn" id="backBtn" aria-label="Back">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b92a8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                </button>
+                <span class="task-detail-title">Reklama ko'rish</span>
+            </div>
+
+            <!-- Video Player -->
+            <div class="video-container">
+                <div class="video-placeholder">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+                        <rect x="2" y="4" width="20" height="16" rx="3" stroke="#ffffff" stroke-width="1.5" opacity="0.3"/>
+                        <polygon points="10,8 16,12 10,16" fill="#ffffff" opacity="0.3"/>
+                    </svg>
+                </div>
+                <div class="countdown-overlay" id="countdownOverlay">
+                    <div class="countdown-circle">
+                        <svg width="80" height="80" viewBox="0 0 80 80">
+                            <circle class="countdown-circle-bg" cx="40" cy="40" r="36"></circle>
+                            <circle class="countdown-circle-progress" id="countdownProgress" cx="40" cy="40" r="36"></circle>
+                        </svg>
+                        <span class="countdown-text" id="countdownText">30s</span>
+                    </div>
+                </div>
+                <div class="skip-badge" id="skipBadge">Skip in 5s</div>
+            </div>
+
+            <!-- Task Info -->
+            <div class="task-detail-info">
+                <h2>Premium Reklama Ko'rish</h2>
+                <p>Ushbu 30 soniyalik videoni to'liq ko'rib chiqing va mukofotni oling.</p>
+            </div>
+
+            <!-- Reward Breakdown -->
+            <div class="reward-card">
+                <div class="reward-row">
+                    <span class="reward-row-label">Asosiy mukofot</span>
+                    <span class="reward-row-value">50,000 FEE</span>
+                </div>
+                <div class="reward-row">
+                    <span class="reward-row-label">Kunlik seriya bonusi</span>
+                    <span class="reward-row-value green">+5,000 FEE</span>
+                </div>
+                <div class="reward-divider"></div>
+                <div class="reward-row-total">
+                    <span class="reward-row-label">Jami</span>
+                    <span class="reward-row-value">55,000 FEE</span>
+                </div>
+            </div>
+
+            <!-- Action Button -->
+            <button class="action-btn start" id="actionBtn">Ko'rishni Boshlash</button>
+
+        </div>
+
+        <!-- ===== WITHDRAWAL SCREEN ===== -->
+        <div class="screen" id="withdrawScreen">
+
+            <!-- Balance Summary Header -->
+            <div class="withdraw-balance-section">
+                <div class="withdraw-balance-label">Mavjud Balans</div>
+                <div class="withdraw-balance-amount" id="withdrawBalanceAmount">154,490,751 FEE</div>
+                <div class="withdraw-balance-usd">≈ $154.49 USD</div>
+                <div class="withdraw-min-badge">Minimal yechib olish: $1.00 (1,000,000 FEE)</div>
+            </div>
+
+            <!-- Withdrawal Methods -->
+            <div class="withdraw-methods">
+                <!-- Method 1: USDT TRC20 -->
+                <div class="withdraw-method-card selected" data-method="usdt" id="methodUsdt">
+                    <div class="withdraw-method-left">
+                        <div class="withdraw-method-icon gold-bg">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="11" fill="#f0b90b" opacity="0.8"/>
+                                <text x="12" y="16" text-anchor="middle" font-size="10" font-weight="bold" fill="#0a0e1a">$</text>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="withdraw-method-name">USDT (TRC20)</div>
+                            <div class="withdraw-method-details">TRC20 tarmog'i</div>
+                            <div class="withdraw-recommended-badge">Tavsiya etiladi</div>
+                        </div>
+                    </div>
+                    <div class="withdraw-method-right">
+                        <div class="withdraw-method-fee">Komissiya: 1 USDT</div>
+                        <div class="withdraw-method-time">Vaqt: 5-30 daqiqa</div>
+                    </div>
+                </div>
+
+                <!-- Method 2: Bank Card -->
+                <div class="withdraw-method-card" data-method="bank" id="methodBank">
+                    <div class="withdraw-method-left">
+                        <div class="withdraw-method-icon blue-bg">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                                <rect x="2" y="6" width="20" height="14" rx="2" stroke="#2979ff" stroke-width="1.5"/>
+                                <line x1="2" y1="10" x2="22" y2="10" stroke="#2979ff" stroke-width="1.5"/>
+                                <text x="12" y="17" text-anchor="middle" font-size="7" font-weight="bold" fill="#2979ff">VISA</text>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="withdraw-method-name">Bank Kartasi</div>
+                            <div class="withdraw-method-details">Visa / Mastercard / Uzcard</div>
+                        </div>
+                    </div>
+                    <div class="withdraw-method-right">
+                        <div class="withdraw-method-fee">Komissiya: 2%</div>
+                        <div class="withdraw-method-time">Vaqt: 1-3 kun</div>
+                    </div>
+                </div>
+
+                <!-- Method 3: Telegram Wallet -->
+                <div class="withdraw-method-card" data-method="telegram" id="methodTelegram">
+                    <div class="withdraw-method-left">
+                        <div class="withdraw-method-icon cyan-bg">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                                <path d="M20.5 3.5L2 12l7.5 2.8L17 8l-5.5 6.5L17 21l6-17.5z" stroke="#00e676" stroke-width="1.5" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="withdraw-method-name">Telegram Wallet</div>
+                            <div class="withdraw-method-details">@wallet orqali to'g'ridan-to'g'ri</div>
+                        </div>
+                    </div>
+                    <div class="withdraw-method-right">
+                        <div class="withdraw-method-fee">Komissiya: 0%</div>
+                        <div class="withdraw-method-time">Vaqt: Darhol</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Withdrawal Form -->
+            <div class="withdraw-form visible" id="withdrawForm">
+                <div class="withdraw-input-group">
+                    <div class="withdraw-input-label">
+                        <span>Miqdor (FEE)</span>
+                        <button class="withdraw-max-btn" id="maxBtn">MAX</button>
+                    </div>
+                    <input class="withdraw-input" id="amountInput" type="number" placeholder="1,000,000 minimum" inputmode="numeric">
+                </div>
+                <div class="withdraw-input-group">
+                    <div class="withdraw-input-label">
+                        <span>TRC20 Hamyon Manzili</span>
+                    </div>
+                    <input class="withdraw-input" id="walletInput" type="text" placeholder="T...">
+                </div>
+                <div class="withdraw-security-note">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b92a8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" stroke="#8b92a8"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span>Xavfsizlik uchun $100 dan yuqori summalarda 2FA talab qilinadi.</span>
+                </div>
+                <button class="withdraw-submit-btn" id="withdrawSubmitBtn" disabled>Yechib Olish</button>
+            </div>
+
+        </div>
+
+        <!-- ===== BOTTOM NAVIGATION ===== -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-screen="homeScreen">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" stroke="#f0b90b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <polyline points="9 22 9 12 15 12 15 22" stroke="#f0b90b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="nav-label">Bosh Sahifa</span>
+            </button>
+            <button class="nav-item" data-screen="withdrawScreen">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 1v22M5 8l7-7 7 7M5 16l7 7 7-7" stroke="#8b92a8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="nav-label">Yechib Olish</span>
+            </button>
+            <button class="nav-item" data-screen="homeScreen">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="#8b92a8" stroke-width="1.5" stroke-linecap="round"/>
+                    <circle cx="9" cy="7" r="4" stroke="#8b92a8" stroke-width="1.5"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="#8b92a8" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <span class="nav-label">Do'stlar</span>
+            </button>
+            <button class="nav-item" data-screen="homeScreen">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="#8b92a8" stroke-width="1.5" stroke-linecap="round"/>
+                    <circle cx="12" cy="7" r="4" stroke="#8b92a8" stroke-width="1.5"/>
+                </svg>
+                <span class="nav-label">Profil</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <script>
+        // ===== STATE =====
+        var state = {
+            balance: 154490751,
+            isWatching: false,
+            countdownInterval: null,
+            countdownValue: 30,
+            rewardClaimed: false,
+            selectedMethod: 'usdt'
+        };
+
+        // ===== DOM REFS =====
+        var homeScreen = document.getElementById('homeScreen');
+        var taskDetailScreen = document.getElementById('taskDetailScreen');
+        var backBtn = document.getElementById('backBtn');
+        var actionBtn = document.getElementById('actionBtn');
+        var countdownText = document.getElementById('countdownText');
+        var countdownProgress = document.getElementById('countdownProgress');
+        var countdownOverlay = document.getElementById('countdownOverlay');
+        var skipBadge = document.getElementById('skipBadge');
+        var balanceAmount = document.getElementById('balanceAmount');
+        var withdrawBalanceAmount = document.getElementById('withdrawBalanceAmount');
+        var amountInput = document.getElementById('amountInput');
+        var walletInput = document.getElementById('walletInput');
+        var withdrawSubmitBtn = document.getElementById('withdrawSubmitBtn');
+        var maxBtn = document.getElementById('maxBtn');
+        var navItems = document.querySelectorAll('.nav-item');
+
+        // ===== SCREEN NAVIGATION =====
+        function showScreen(screenId) {
+            var screens = document.querySelectorAll('.screen');
+            screens.forEach(function(s) {
+                s.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+
+            // Update nav active state
+            navItems.forEach(function(item) {
+                item.classList.remove('active');
+                if (item.getAttribute('data-screen') === screenId) {
+                    item.classList.add('active');
+                    // Update icon color for active item
+                    var svg = item.querySelector('svg');
+                    if (svg) {
+                        var strokes = svg.querySelectorAll('[stroke]');
+                        strokes.forEach(function(st) {
+                            st.setAttribute('stroke', '#f0b90b');
+                        });
+                    }
+                } else {
+                    var svg = item.querySelector('svg');
+                    if (svg) {
+                        var strokes = svg.querySelectorAll('[stroke]');
+                        strokes.forEach(function(st) {
+                            st.setAttribute('stroke', '#8b92a8');
+                        });
+                    }
+                }
+            });
+
+            // Update withdraw balance when showing withdraw screen
+            if (screenId === 'withdrawScreen') {
+                updateWithdrawBalance();
+            }
+        }
+
+        // Nav item clicks
+        navItems.forEach(function(item) {
+            item.addEventListener('click', function() {
+                haptic('light');
+                var screen = item.getAttribute('data-screen');
+                if (screen) {
+                    showScreen(screen);
+                }
+            });
+        });
+
+        backBtn.addEventListener('click', function() {
+            haptic('light');
+            showScreen('homeScreen');
+        });
+
+        // Withdraw button click
+        withdrawBtn.addEventListener('click', function() {
+            haptic('light');
+            showScreen('withdrawScreen');
+        });
+
+        // ===== HAPTIC FEEDBACK =====
+        function haptic(type) {
+            try {
+                if (window.Telegram?.WebApp?.HapticFeedback) {
+                    window.Telegram.WebApp.HapticFeedback.impactOccurred(type || 'light');
+                }
+            } catch (e) {}
+        }
+
+        // ===== COUNT-UP ANIMATION =====
+        function animateValue(obj, start, end, duration) {
+            var startTime = null;
+            var step = function(timestamp) {
+                if (!startTime) startTime = timestamp;
+                var progress = Math.min((timestamp - startTime) / duration, 1);
+                var current = Math.floor(progress * (end - start) + start);
+                obj.textContent = formatNumber(current);
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                } else {
+                    obj.textContent = formatNumber(end);
+                }
+            };
+            window.requestAnimationFrame(step);
+        }
+
+        // ===== REWARD LOGIC =====
+        function formatNumber(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
+        function updateBalance(amount) {
+            var oldBalance = state.balance;
+            state.balance += amount;
+            animateValue(balanceAmount, oldBalance, state.balance, 800);
+        }
+
+        // ===== WITHDRAWAL =====
+        function updateWithdrawBalance() {
+            withdrawBalanceAmount.textContent = formatNumber(state.balance) + ' FEE';
+        }
+
+        // Method selection
+        var methodCards = document.querySelectorAll('.withdraw-method-card');
+        methodCards.forEach(function(card) {
+            card.addEventListener('click', function() {
+                methodCards.forEach(function(c) {
+                    c.classList.remove('selected');
+                });
+                card.classList.add('selected');
+                state.selectedMethod = card.getAttribute('data-method');
+
+                // Update wallet input placeholder based on method
+                if (state.selectedMethod === 'usdt') {
+                    walletInput.placeholder = 'T... (TRC20 manzili)';
+                } else if (state.selectedMethod === 'bank') {
+                    walletInput.placeholder = 'Karta raqami (8600...)';
+                } else {
+                    walletInput.placeholder = 'Telegram @username';
+                }
+
+                validateWithdrawForm();
+            });
+        });
+
+        // MAX button
+        maxBtn.addEventListener('click', function() {
+            amountInput.value = state.balance;
+            validateWithdrawForm();
+        });
+
+        // Input validation
+        amountInput.addEventListener('input', validateWithdrawForm);
+        walletInput.addEventListener('input', validateWithdrawForm);
+
+        function validateWithdrawForm() {
+            var amount = parseFloat(amountInput.value) || 0;
+            var wallet = walletInput.value.trim();
+            var isValid = amount >= 1000000 && amount <= state.balance && wallet.length > 0;
+            withdrawSubmitBtn.disabled = !isValid;
+        }
+
+        // Submit withdrawal
+        withdrawSubmitBtn.addEventListener('click', function() {
+            var amount = parseFloat(amountInput.value) || 0;
+            if (amount >= 1000000 && amount <= state.balance) {
+                state.balance -= amount;
+                balanceAmount.textContent = formatNumber(state.balance);
+                updateWithdrawBalance();
+                withdrawSubmitBtn.textContent = 'Yuborildi ✓';
+                withdrawSubmitBtn.disabled = true;
+                setTimeout(function() {
+                    withdrawSubmitBtn.textContent = 'Yechib Olish';
+                    amountInput.value = '';
+                    walletInput.value = '';
+                    withdrawSubmitBtn.disabled = true;
+                    showScreen('homeScreen');
+                }, 2000);
+            }
+        });
+
+        // ===== COUNTDOWN =====
+        function startCountdown() {
+            state.isWatching = true;
+            state.countdownValue = 30;
+            state.rewardClaimed = false;
+
+            actionBtn.disabled = true;
+            actionBtn.textContent = 'Tomosha qilinmoqda...';
+            actionBtn.className = 'action-btn start';
+            skipBadge.className = 'skip-badge';
+            skipBadge.textContent = 'Skip in 5s';
+
+            var circumference = 226.19;
+            countdownProgress.style.strokeDashoffset = '0';
+            countdownText.textContent = '30s';
+
+            state.countdownInterval = setInterval(function() {
+                state.countdownValue -= 1;
+                countdownText.textContent = state.countdownValue + 's';
+
+                var offset = circumference * (1 - state.countdownValue / 30);
+                countdownProgress.style.strokeDashoffset = offset;
+
+                if (state.countdownValue === 5) {
+                    skipBadge.className = 'skip-badge active';
+                    skipBadge.textContent = 'Skip now';
+                }
+
+                if (state.countdownValue <= 0) {
+                    clearInterval(state.countdownInterval);
+                    state.countdownInterval = null;
+                    onCountdownComplete();
+                }
+            }, 1000);
+        }
+
+        function onCountdownComplete() {
+            state.isWatching = false;
+            actionBtn.disabled = false;
+            actionBtn.textContent = 'Mukofotni Olish';
+            actionBtn.className = 'action-btn claim';
+            countdownText.textContent = '0s';
+            countdownOverlay.style.display = 'none';
+            skipBadge.className = 'skip-badge';
+            skipBadge.textContent = 'Completed';
+        }
+
+        function resetCountdown() {
+            if (state.countdownInterval) {
+                clearInterval(state.countdownInterval);
+                state.countdownInterval = null;
+            }
+            state.isWatching = false;
+            state.countdownValue = 30;
+            countdownProgress.style.strokeDashoffset = '0';
+            countdownText.textContent = '30s';
+            countdownOverlay.style.display = 'flex';
+            skipBadge.className = 'skip-badge';
+            skipBadge.textContent = 'Skip in 5s';
+            actionBtn.disabled = false;
+            actionBtn.textContent = 'Ko\'rishni Boshlash';
+            actionBtn.className = 'action-btn start';
+        }
+
+        skipBadge.addEventListener('click', function() {
+            if (state.isWatching && state.countdownValue <= 5) {
+                clearInterval(state.countdownInterval);
+                state.countdownInterval = null;
+                onCountdownComplete();
+            }
+        });
+
+        actionBtn.addEventListener('click', function() {
+            if (actionBtn.classList.contains('claim')) {
+                if (!state.rewardClaimed) {
+                    state.rewardClaimed = true;
+                    updateBalance(55000);
+                    actionBtn.textContent = 'Mukofot Olindi ✓';
+                    actionBtn.disabled = true;
+                    actionBtn.className = 'action-btn claim';
+                    setTimeout(function() {
+                        showScreen('homeScreen');
+                        resetCountdown();
+                    }, 1500);
+                }
+            } else {
+                startCountdown();
+            }
+        });
+
+        // ===== INJECT TASK CARDS =====
+        var tasks = [
+            {
+                title: "Videoni tomosha qiling",
+                subtitle: "30 soniya reklama ko'ring",
+                reward: "+50,000 FEE",
+                badge: "READY",
+                gradientClass: "gradient-blue",
+                icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="3" stroke="#ffffff" stroke-width="1.5"/><polygon points="10,8 16,12 10,16" fill="#ffffff"/></svg>'
+            },
+            {
+                title: "Kanalga obuna bo'ling",
+                subtitle: "Telegram kanaliga a'zo bo'ling",
+                reward: "+75,000 FEE",
+                badge: "READY",
+                gradientClass: "gradient-purple",
+                icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="#ffffff" stroke-width="1.5" fill="none"/></svg>'
+            },
+            {
+                title: "Do'stingizni taklif qiling",
+                subtitle: "Do'stingizga havola yuboring",
+                reward: "+100,000 FEE",
+                badge: "READY",
+                gradientClass: "gradient-orange",
+                icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="#ffffff" stroke-width="1.5"/></svg>'
+            }
+        ];
+
+        var taskListEl = document.getElementById('taskList');
+        tasks.forEach(function(t) {
+            var card = document.createElement('div');
+            card.className = 'task-card';
+            card.innerHTML = '<div class="task-icon-circle ' + t.gradientClass + '">' + t.icon + '</div><div class="task-info"><div class="task-title">' + t.title + '</div><div class="task-subtitle">' + t.subtitle + '</div></div><div class="task-right"><div class="task-reward">' + t.reward + '</div><span class="task-badge">' + t.badge + '</span></div>';
+            card.addEventListener('click', function() {
+                showScreen('taskDetailScreen');
+                resetCountdown();
+            });
+            taskListEl.appendChild(card);
+        });
+    </script>
+</body>
+</html>
