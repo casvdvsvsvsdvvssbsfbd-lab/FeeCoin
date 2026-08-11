@@ -13,14 +13,12 @@ import { toastStore } from '../../lib/notifications/toast-store';
 // ============================================================
 // HOME SCREEN
 // - Balance Card (from wallet store)
-// - AdsGram "EARN" reward button (Block ID: 42176)
+// - Monetag "EARN" reward button (Zone ID: 11548562)
 // - Daily Streak indicator
 // - Today's stats
 // - Quick Access cards (Tasks / Referral / Missions)
 // - Recent activity
 // ============================================================
-
-const ADSGRAM_BLOCK_ID = '42176';
 
 const EarnButton: React.FC = () => {
   const [isEarning, setIsEarning] = useState(false);
@@ -31,8 +29,7 @@ const EarnButton: React.FC = () => {
     setIsEarning(true);
     setStatusMessage(null);
 
-    if (typeof window === 'undefined' || !window.Adsgram) {
-      console.warn('AdsGram SDK is not available on window');
+    if (typeof window === 'undefined' || typeof (window as any).show_11548562 === 'undefined') {
       const errorMsg = "Hozircha reklama topilmadi, keyinroq urinib ko'ring";
       setStatusMessage({ text: errorMsg, type: 'error' });
       toastStore.error(errorMsg);
@@ -41,21 +38,11 @@ const EarnButton: React.FC = () => {
     }
 
     try {
-      const AdController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
-      const result = await AdController.show();
-
-      // Video watched successfully
-      if (result && (result.done || result.state === 'reward')) {
-        const successMsg = "Reklama ko'rildi! Coin tez orada qo'shiladi";
-        setStatusMessage({ text: successMsg, type: 'success' });
-        toastStore.success(successMsg);
-      } else {
-        const errorMsg = "Hozircha reklama topilmadi, keyinroq urinib ko'ring";
-        setStatusMessage({ text: errorMsg, type: 'error' });
-        toastStore.error(errorMsg);
-      }
-    } catch (error) {
-      console.error('AdsGram reward video error:', error);
+      await (window as any).show_11548562('pop');
+      const successMsg = "Reklama ko'rildi! Coin tez orada qo'shiladi";
+      setStatusMessage({ text: successMsg, type: 'success' });
+      toastStore.success(successMsg);
+    } catch (e) {
       const errorMsg = "Hozircha reklama topilmadi, keyinroq urinib ko'ring";
       setStatusMessage({ text: errorMsg, type: 'error' });
       toastStore.error(errorMsg);
@@ -119,8 +106,6 @@ export const HomeScreen: React.FC = () => {
   const [earnings, setEarnings] = useState({ today: 0, weekly: 0, monthly: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load home data. Always set isLoading=false in finally so the
-  // screen never stays stuck on a spinner.
   useEffect(() => {
     let cancelled = false;
     const loadData = async () => {
@@ -130,7 +115,6 @@ export const HomeScreen: React.FC = () => {
         if (cancelled) return;
         setRecentRewards(data.recentRewards);
         setEarnings(data.earnings);
-        // Sync wallet balance from server if available
         if (data.wallet.availableFC > 0) {
           wallet.setBalance(data.wallet.availableFC);
           wallet.setFcBalance(data.wallet.availableFC);
@@ -194,7 +178,7 @@ export const HomeScreen: React.FC = () => {
         >
           <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Mavjud balans</p>
           <div className="flex items-baseline gap-1">
-<span className="text-3xl font-black text-[#f0b90b] tabular-nums">{formatFC(wallet.balance)}</span>
+            <span className="text-3xl font-black text-[#f0b90b] tabular-nums">{formatFC(wallet.balance)}</span>
           </div>
 
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
@@ -214,7 +198,7 @@ export const HomeScreen: React.FC = () => {
             </div>
             <div className="text-right">
               <p className="text-[10px] text-white/40">Kutilayotgan</p>
-<p className="text-xs font-semibold text-white/70">{formatFC(0)}</p>
+              <p className="text-xs font-semibold text-white/70">{formatFC(0)}</p>
             </div>
           </div>
         </motion.div>
@@ -282,7 +266,7 @@ export const HomeScreen: React.FC = () => {
                 <p className="text-xs font-semibold text-white truncate">{reward.description}</p>
                 <p className="text-[10px] text-white/40">{reward.timestamp}</p>
               </div>
-<span className="text-xs font-bold text-[#00FF88]">+{formatFC(reward.amount)}</span>
+              <span className="text-xs font-bold text-[#00FF88]">+{formatFC(reward.amount)}</span>
             </motion.div>
           )) : (
             <div className="glass-card p-4 text-center text-white/40 text-xs">
