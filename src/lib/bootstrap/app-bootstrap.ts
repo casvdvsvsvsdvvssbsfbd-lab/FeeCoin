@@ -230,7 +230,7 @@ class AppBootstrap {
 
       for (const flag of data || []) {
         // Check if user is in target audience
-        if (this.isUserInTargetAudience(flag.target_audience)) {
+        if (this.isUserInTargetAudience(flag.target_audience as Record<string, any>)) {
           // Apply rollout percentage
           if (flag.rollout_percentage >= 100) {
             flags[flag.key] = true;

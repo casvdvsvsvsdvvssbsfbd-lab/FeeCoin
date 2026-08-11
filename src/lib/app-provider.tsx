@@ -97,7 +97,27 @@ const AppInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) =
       }
     };
 
-    initializeApp();
+    // Guard: never allow app init to hang. Regardless of whether sub-steps
+    // settle, ALWAYS release the screen within INIT_TIMEOUT_MS so the UI
+    // renders instead of staying on the loading spinner / blank screen.
+    const INIT_TIMEOUT_MS = 10000;
+    let settled = false;
+    const finalize = () => {
+      if (settled) return;
+      settled = true;
+      setGlobalLoading(false);
+      setBootstrapping(false);
+      setInitialized(true);
+      setIsInitialized(true);
+    };
+
+    initializeApp().then(() => { finalize(); }).catch(() => { finalize(); });
+    const timer = setTimeout(() => {
+      console.warn(`[AppProvider] App init timed out after ${INIT_TIMEOUT_MS}ms — releasing UI.`);
+      finalize();
+    }, INIT_TIMEOUT_MS);
+
+    return () => clearTimeout(timer);
   }, []);
 
   // Load user settings

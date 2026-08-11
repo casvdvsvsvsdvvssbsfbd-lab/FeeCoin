@@ -21,15 +21,39 @@ class TelegramSDK {
     this.initializationPromise = this.loadSDK();
   }
 
-  private async loadSDK(): Promise<void> {
-    return new Promise((resolve, reject) => {
+private async loadSDK(): Promise<void> {
+    return new Promise((resolve) => {
+      // Guard: never allow the Telegram script load to hang the promise.
+      // If WebApp is not available within SDK_TIMEOUT_MS, fall back to the
+      // mock WebApp so the UI always renders (critical on Vercel production
+      // where the script may be blocked, delayed, or never fire callbacks).
+      const SDK_TIMEOUT_MS = 3000;
+      let settled = false;
+
+      const finish = (mode: 'webapp' | 'mock' | 'error') => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (mode === 'webapp' && this.webApp) {
+          this.setupWebApp();
+          this.isInitialized = true;
+        } else {
+          this.createMockWebApp();
+          this.isInitialized = true;
+        }
+        resolve();
+      };
+
+      const timer = setTimeout(() => {
+        console.warn('[TelegramSDK] SDK load timed out — falling back to mock WebApp.');
+        finish('mock');
+      }, SDK_TIMEOUT_MS);
+
       try {
-        // Check if Telegram WebApp is available
-      if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-            this.webApp = window.Telegram.WebApp as any;
-            this.setupWebApp();
-            this.isInitialized = true;
-          resolve();
+        // Check if Telegram WebApp is already available
+        if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+          this.webApp = window.Telegram.WebApp as any;
+          finish('webapp');
           return;
         }
 
@@ -37,31 +61,28 @@ class TelegramSDK {
         const script = document.createElement('script');
         script.src = 'https://telegram.org/js/telegram-web-app.js';
         script.async = true;
-        
+
         script.onload = () => {
           if (window.Telegram?.WebApp) {
             this.webApp = window.Telegram.WebApp as any;
-            this.setupWebApp();
-            this.isInitialized = true;
-            resolve();
+            finish('webapp');
           } else {
-            reject(new Error('Telegram WebApp failed to initialize'));
+            console.warn('[TelegramSDK] Script loaded but WebApp missing — using mock.');
+            finish('error');
           }
         };
 
         script.onerror = () => {
           // In development or non-Telegram environment, create mock
-          this.createMockWebApp();
-          this.isInitialized = true;
-          resolve();
+          console.warn('[TelegramSDK] Script failed to load — using mock WebApp.');
+          finish('mock');
         };
 
         document.head.appendChild(script);
       } catch (error) {
         // In development or non-Telegram environment, create mock
-        this.createMockWebApp();
-        this.isInitialized = true;
-        resolve();
+        console.warn('[TelegramSDK] Error loading SDK — using mock WebApp.', error);
+        finish('mock');
       }
     });
   }
@@ -209,7 +230,20 @@ class TelegramSDK {
 
   public async waitForInitialization(): Promise<void> {
     if (this.isInitialized) return;
-    await this.initializationPromise!;
+    // Defensive guard: even if the internal promise somehow never settles,
+    // never hang the caller. Resolve within SDK_TIMEOUT_MS regardless.
+    const promise = this.initializationPromise ?? Promise.resolve();
+    await Promise.race([
+      promise,
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, 4000);
+      }),
+    ]);
+    // Ensure a mock exists if initialization still hasn't completed.
+    if (!this.webApp) {
+      this.createMockWebApp();
+      this.isInitialized = true;
+    }
   }
 
   public getWebApp(): TelegramWebApp | null {
@@ -226,6 +260,14 @@ class TelegramSDK {
 
   public getStartParam(): string | null {
     return this.webApp?.initDataUnsafe?.start_param || null;
+  }
+
+  /**
+   * Return the RAW initData string (needed for server-side validation).
+   * Returns null when not running inside a real Telegram client.
+   */
+  public getInitDataString(): string | null {
+    return this.webApp?.initData || null;
   }
 
   public getQueryId(): string | null {

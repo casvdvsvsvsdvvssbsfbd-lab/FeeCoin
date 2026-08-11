@@ -4,7 +4,9 @@
 // ============================================
 
 import { EconomyConfig } from './types';
-import { RemoteConfig } from '../../types/database';
+import { Tables } from '../../types/database';
+
+type RemoteConfig = Tables<'remote_configs'>;
 
 export class EconomyConfiguration {
   private config: EconomyConfig;

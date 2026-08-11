@@ -44,7 +44,7 @@ CREATE TYPE leaderboard_period AS ENUM ('daily', 'weekly', 'monthly', 'all_time'
 
 -- Users table (extends Supabase Auth)
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     telegram_id BIGINT UNIQUE,
     email VARCHAR(255) UNIQUE,
     phone VARCHAR(20) UNIQUE,
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Profiles table
 CREATE TABLE IF NOT EXISTS profiles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     avatar_url TEXT,
     bio TEXT,
@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 -- Wallets table
 CREATE TABLE IF NOT EXISTS wallets (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     balance DECIMAL(20, 8) DEFAULT 0 NOT NULL,
     pending_balance DECIMAL(20, 8) DEFAULT 0 NOT NULL,
@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS wallets (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS fc_ledger (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     transaction_type transaction_type NOT NULL,
     amount DECIMAL(20, 8) NOT NULL,
@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS fc_ledger (
 
 -- Reward Pool (centralized reward management)
 CREATE TABLE IF NOT EXISTS reward_pool (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     description TEXT,
     total_amount DECIMAL(20, 8) NOT NULL,
@@ -161,7 +161,7 @@ CREATE TABLE IF NOT EXISTS reward_pool (
 
 -- Transactions table
 CREATE TABLE IF NOT EXISTS transactions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     wallet_id UUID NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
     transaction_type transaction_type NOT NULL,
@@ -183,9 +183,27 @@ CREATE TABLE IF NOT EXISTS transactions (
     CONSTRAINT valid_fee CHECK (fee >= 0)
 );
 
+-- Settlement Cycles table (must be created before settlements due to FK)
+CREATE TABLE IF NOT EXISTS settlement_cycles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    period_start TIMESTAMPTZ NOT NULL,
+    period_end TIMESTAMPTZ NOT NULL,
+    total_amount DECIMAL(20, 8) NOT NULL,
+    total_users INTEGER DEFAULT 0 NOT NULL,
+    status settlement_status DEFAULT 'pending' NOT NULL,
+    processed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    
+    CONSTRAINT valid_period CHECK (period_end > period_start),
+    CONSTRAINT valid_total_amount CHECK (total_amount >= 0),
+    CONSTRAINT valid_total_users CHECK (total_users >= 0)
+);
+
 -- Settlements table
 CREATE TABLE IF NOT EXISTS settlements (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     settlement_cycle_id UUID REFERENCES settlement_cycles(id),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     amount DECIMAL(20, 8) NOT NULL,
@@ -202,31 +220,13 @@ CREATE TABLE IF NOT EXISTS settlements (
     CONSTRAINT valid_settlement_amount CHECK (amount > 0)
 );
 
--- Settlement Cycles table
-CREATE TABLE IF NOT EXISTS settlement_cycles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(100) NOT NULL,
-    period_start TIMESTAMPTZ NOT NULL,
-    period_end TIMESTAMPTZ NOT NULL,
-    total_amount DECIMAL(20, 8) NOT NULL,
-    total_users INTEGER DEFAULT 0 NOT NULL,
-    status settlement_status DEFAULT 'pending' NOT NULL,
-    processed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    
-    CONSTRAINT valid_period CHECK (period_end > period_start),
-    CONSTRAINT valid_total_amount CHECK (total_amount >= 0),
-    CONSTRAINT valid_total_users CHECK (total_users >= 0)
-);
-
 -- ============================================
 -- AD REWARDS SYSTEM
 -- ============================================
 
 -- Ad Networks table
 CREATE TABLE IF NOT EXISTS ad_networks (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     type ad_network NOT NULL,
     api_key TEXT,
@@ -242,7 +242,7 @@ CREATE TABLE IF NOT EXISTS ad_networks (
 
 -- Ad Views table
 CREATE TABLE IF NOT EXISTS ad_views (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     ad_network_id UUID REFERENCES ad_networks(id),
     ad_type ad_type NOT NULL,
@@ -266,7 +266,7 @@ CREATE TABLE IF NOT EXISTS ad_views (
 
 -- Ad Rewards table
 CREATE TABLE IF NOT EXISTS ad_rewards (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ad_view_id UUID NOT NULL REFERENCES ad_views(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     reward_pool_id UUID REFERENCES reward_pool(id),
@@ -285,7 +285,7 @@ CREATE TABLE IF NOT EXISTS ad_rewards (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS surveys (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title VARCHAR(255) NOT NULL,
     description TEXT,
     provider VARCHAR(100) NOT NULL,
@@ -310,7 +310,7 @@ CREATE TABLE IF NOT EXISTS surveys (
 );
 
 CREATE TABLE IF NOT EXISTS survey_history (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     survey_id UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
     status survey_status DEFAULT 'in_progress' NOT NULL,
@@ -329,7 +329,7 @@ CREATE TABLE IF NOT EXISTS survey_history (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS offerwalls (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     type offerwall_type NOT NULL,
     provider VARCHAR(100) NOT NULL,
@@ -345,7 +345,7 @@ CREATE TABLE IF NOT EXISTS offerwalls (
 );
 
 CREATE TABLE IF NOT EXISTS offerwall_history (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     offerwall_id UUID NOT NULL REFERENCES offerwalls(id) ON DELETE CASCADE,
     offer_id VARCHAR(100) NOT NULL,
@@ -366,7 +366,7 @@ CREATE TABLE IF NOT EXISTS offerwall_history (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS app_installs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     app_name VARCHAR(255) NOT NULL,
     package_name VARCHAR(255),
@@ -392,7 +392,7 @@ CREATE TABLE IF NOT EXISTS app_installs (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS referral_links (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     code VARCHAR(20) UNIQUE NOT NULL,
     uses_count INTEGER DEFAULT 0 NOT NULL,
@@ -406,7 +406,7 @@ CREATE TABLE IF NOT EXISTS referral_links (
 );
 
 CREATE TABLE IF NOT EXISTS referrals (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     referrer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     referee_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     referral_link_id UUID NOT NULL REFERENCES referral_links(id) ON DELETE CASCADE,
@@ -424,7 +424,7 @@ CREATE TABLE IF NOT EXISTS referrals (
 );
 
 CREATE TABLE IF NOT EXISTS referral_rewards (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     referral_id UUID NOT NULL REFERENCES referrals(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     reward_type VARCHAR(50) NOT NULL,
@@ -441,7 +441,7 @@ CREATE TABLE IF NOT EXISTS referral_rewards (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS missions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title VARCHAR(255) NOT NULL,
     description TEXT,
     type mission_type NOT NULL,
@@ -461,7 +461,7 @@ CREATE TABLE IF NOT EXISTS missions (
 );
 
 CREATE TABLE IF NOT EXISTS mission_progress (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     mission_id UUID NOT NULL REFERENCES missions(id) ON DELETE CASCADE,
     progress JSONB DEFAULT '{}'::jsonb NOT NULL,
@@ -484,7 +484,7 @@ CREATE TABLE IF NOT EXISTS mission_progress (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS achievements (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     description TEXT,
     icon_url TEXT,
@@ -495,7 +495,7 @@ CREATE TABLE IF NOT EXISTS achievements (
 );
 
 CREATE TABLE IF NOT EXISTS badges (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     description TEXT,
     icon_url TEXT,
@@ -505,7 +505,7 @@ CREATE TABLE IF NOT EXISTS badges (
 );
 
 CREATE TABLE IF NOT EXISTS user_badges (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     badge_id UUID NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
     earned_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -514,7 +514,7 @@ CREATE TABLE IF NOT EXISTS user_badges (
 );
 
 CREATE TABLE IF NOT EXISTS streaks (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
     current_streak INTEGER DEFAULT 0 NOT NULL,
     longest_streak INTEGER DEFAULT 0 NOT NULL,
@@ -530,7 +530,7 @@ CREATE TABLE IF NOT EXISTS streaks (
 );
 
 CREATE TABLE IF NOT EXISTS daily_bonus (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     day_number INTEGER NOT NULL,
     reward_amount DECIMAL(20, 8) NOT NULL,
@@ -547,7 +547,7 @@ CREATE TABLE IF NOT EXISTS daily_bonus (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS events (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     type event_type NOT NULL,
@@ -565,7 +565,7 @@ CREATE TABLE IF NOT EXISTS events (
 );
 
 CREATE TABLE IF NOT EXISTS event_rewards (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     rank_position INTEGER,
@@ -585,7 +585,7 @@ CREATE TABLE IF NOT EXISTS event_rewards (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS leaderboard_daily (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     score DECIMAL(20, 8) NOT NULL,
     rank INTEGER NOT NULL,
@@ -599,7 +599,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_daily (
 );
 
 CREATE TABLE IF NOT EXISTS leaderboard_weekly (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     score DECIMAL(20, 8) NOT NULL,
     rank INTEGER NOT NULL,
@@ -615,7 +615,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_weekly (
 );
 
 CREATE TABLE IF NOT EXISTS leaderboard_monthly (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     score DECIMAL(20, 8) NOT NULL,
     rank INTEGER NOT NULL,
@@ -631,7 +631,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_monthly (
 );
 
 CREATE TABLE IF NOT EXISTS leaderboard_all_time (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
     score DECIMAL(20, 8) NOT NULL,
     rank INTEGER NOT NULL,
@@ -647,7 +647,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_all_time (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS notifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     type notification_type NOT NULL,
     title VARCHAR(255) NOT NULL,
@@ -664,7 +664,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS support_tickets (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     ticket_number VARCHAR(20) UNIQUE NOT NULL,
     subject VARCHAR(255) NOT NULL,
@@ -678,7 +678,7 @@ CREATE TABLE IF NOT EXISTS support_tickets (
 );
 
 CREATE TABLE IF NOT EXISTS support_messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ticket_id UUID NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     sender_type VARCHAR(20) NOT NULL,
@@ -695,7 +695,7 @@ CREATE TABLE IF NOT EXISTS support_messages (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS admin_users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role VARCHAR(50) NOT NULL,
     permissions JSONB DEFAULT '[]'::jsonb NOT NULL,
@@ -708,7 +708,7 @@ CREATE TABLE IF NOT EXISTS admin_users (
 );
 
 CREATE TABLE IF NOT EXISTS admin_actions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     admin_id UUID NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
     action_type VARCHAR(100) NOT NULL,
     target_type VARCHAR(50),
@@ -725,7 +725,7 @@ CREATE TABLE IF NOT EXISTS admin_actions (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS fraud_detection (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     risk_level fraud_risk_level DEFAULT 'low' NOT NULL,
     status fraud_status DEFAULT 'pending' NOT NULL,
@@ -742,7 +742,7 @@ CREATE TABLE IF NOT EXISTS fraud_detection (
 );
 
 CREATE TABLE IF NOT EXISTS fraud_reports (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     fraud_detection_id UUID NOT NULL REFERENCES fraud_detection(id) ON DELETE CASCADE,
     reported_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     reason TEXT NOT NULL,
@@ -758,7 +758,7 @@ CREATE TABLE IF NOT EXISTS fraud_reports (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS user_devices (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     device_id VARCHAR(255) NOT NULL,
     device_type device_type NOT NULL,
@@ -774,7 +774,7 @@ CREATE TABLE IF NOT EXISTS user_devices (
 );
 
 CREATE TABLE IF NOT EXISTS device_sessions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     device_id VARCHAR(255) NOT NULL,
     device_type device_type NOT NULL,
@@ -811,7 +811,7 @@ CREATE TABLE IF NOT EXISTS languages (
 );
 
 CREATE TABLE IF NOT EXISTS feature_flags (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     key VARCHAR(100) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -825,7 +825,7 @@ CREATE TABLE IF NOT EXISTS feature_flags (
 );
 
 CREATE TABLE IF NOT EXISTS remote_configs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     key VARCHAR(100) UNIQUE NOT NULL,
     value JSONB NOT NULL,
     description TEXT,
@@ -839,7 +839,7 @@ CREATE TABLE IF NOT EXISTS remote_configs (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS app_statistics (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     date DATE NOT NULL,
     total_users INTEGER DEFAULT 0 NOT NULL,
     active_users INTEGER DEFAULT 0 NOT NULL,
@@ -868,7 +868,7 @@ CREATE TABLE IF NOT EXISTS app_statistics (
 );
 
 CREATE TABLE IF NOT EXISTS analytics_events (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     event_name VARCHAR(255) NOT NULL,
     event_category VARCHAR(100),
@@ -881,7 +881,7 @@ CREATE TABLE IF NOT EXISTS analytics_events (
 );
 
 CREATE TABLE IF NOT EXISTS system_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     level log_level NOT NULL,
     logger VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
@@ -897,7 +897,7 @@ CREATE TABLE IF NOT EXISTS system_logs (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS audit_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     admin_id UUID REFERENCES admin_users(id) ON DELETE SET NULL,
     action VARCHAR(255) NOT NULL,
@@ -1107,7 +1107,7 @@ RETURNS TRIGGER AS $$
 BEGIN
     -- Create profile
     INSERT INTO profiles (user_id, language_code, timezone)
-    VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'language_code', 'en'), 'UTC')
+    VALUES (NEW.id, 'en', 'UTC')
     ON CONFLICT DO NOTHING;
     
     -- Create wallet

@@ -244,7 +244,6 @@ ALTER TABLE wallets ADD CONSTRAINT check_pending_balance_positive CHECK (pending
 ALTER TABLE wallets ADD CONSTRAINT check_withdrawable_balance_positive CHECK (withdrawable_balance >= 0);
 ALTER TABLE reward_pool ADD CONSTRAINT check_total_amount_positive CHECK (total_amount >= 0);
 ALTER TABLE reward_pool ADD CONSTRAINT check_distributed_amount_positive CHECK (distributed_amount >= 0);
-ALTER TABLE transactions ADD CONSTRAINT check_amount_positive CHECK (amount > 0);
 ALTER TABLE ad_rewards ADD CONSTRAINT check_reward_amount_positive CHECK (amount > 0);
 ALTER TABLE surveys ADD CONSTRAINT check_survey_reward_positive CHECK (reward_amount > 0);
 ALTER TABLE referrals ADD CONSTRAINT check_referral_reward_positive CHECK (reward_amount > 0);

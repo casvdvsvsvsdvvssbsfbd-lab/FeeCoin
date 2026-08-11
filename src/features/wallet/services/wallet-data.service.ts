@@ -52,14 +52,14 @@ class WalletDataService {
       if (error) throw error;
 
       return {
-        availableFC: data.available_fc || 0,
-        pendingFC: data.pending_fc || 0,
+        availableFC: data.balance || 0,
+        pendingFC: data.pending_balance || 0,
         totalEarned: data.total_earned || 0,
-        totalSpent: data.total_spent || 0,
-        energy: data.energy || 100,
-        maxEnergy: data.max_energy || 100,
-        withdrawalProgress: data.withdrawal_progress || 0,
-        estimatedUnlockDate: data.estimated_unlock_date || null,
+        totalSpent: data.total_withdrawn || 0,
+        energy: 100,
+        maxEnergy: 100,
+        withdrawalProgress: 0,
+        estimatedUnlockDate: null,
       };
     } catch (error) {
       console.error('Failed to fetch wallet data:', error);
@@ -88,11 +88,11 @@ class WalletDataService {
 
       if (error) throw error;
 
-      return data.map(tx => ({
+      return (data || []).map(tx => ({
         id: tx.id,
-        type: tx.type,
+        type: tx.transaction_type as Transaction['type'],
         amount: tx.amount,
-        status: tx.status,
+        status: tx.status as Transaction['status'],
         description: tx.description || '',
         timestamp: tx.created_at,
         metadata: tx.metadata,
@@ -103,24 +103,24 @@ class WalletDataService {
     }
   }
 
-  // Fetch withdrawal history
+  // Fetch withdrawal history (from settlements table)
   async getWithdrawals(userId: string): Promise<Withdrawal[]> {
     try {
       const { data, error } = await supabase
-        .from('withdrawals')
+        .from('settlements')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      return data.map(w => ({
+      return (data || []).map(w => ({
         id: w.id,
         amount: w.amount,
-        status: w.status,
-        method: w.method,
+        status: w.status as Withdrawal['status'],
+        method: w.payment_method || 'unknown',
         createdAt: w.created_at,
-        completedAt: w.completed_at,
+        completedAt: w.processed_at || undefined,
       }));
     } catch (error) {
       console.error('Failed to fetch withdrawals:', error);
@@ -138,36 +138,39 @@ class WalletDataService {
         .eq('user_id', userId)
         .single();
 
-      if (!wallet || wallet.available_fc < amount) {
+      if (!wallet || wallet.balance < amount) {
         throw new Error('Insufficient balance');
       }
 
-      // Create withdrawal request
-      const { error: withdrawalError } = await supabase.from('withdrawals').insert({
+      // Create withdrawal request (settlement)
+      const { error: withdrawalError } = await supabase.from('settlements').insert({
         user_id: userId,
         amount,
-        method,
+        currency: 'FC',
         status: 'pending',
+        payment_method: method,
+        payment_details: {},
       });
 
       if (withdrawalError) throw withdrawalError;
 
       // Deduct from available balance
-      const { error: updateError } = await supabase.rpc('decrement_wallet_balance', {
-        p_user_id: userId,
-        p_amount: amount,
-      });
+      const { error: updateError } = await supabase
+        .from('wallets')
+        .update({ balance: wallet.balance - amount })
+        .eq('user_id', userId);
 
       if (updateError) throw updateError;
 
       // Record transaction
       await supabase.from('transactions').insert({
         user_id: userId,
-        type: 'withdrawal',
-        amount: -amount,
+        wallet_id: wallet.id,
+        transaction_type: 'withdrawal',
+        amount,
         status: 'pending',
         description: `Withdrawal to ${method}`,
-        metadata: { method, withdrawalId: userId },
+        metadata: { method },
       });
 
       // Track analytics
@@ -206,10 +209,51 @@ class WalletDataService {
   // Refresh wallet data
   async refreshWallet(userId: string): Promise<void> {
     const data = await this.loadWalletData(userId);
-    
+
     const walletStore = useWalletStore.getState();
+    const { platform, referral } = deriveSourceBalances(data.transactions, data.wallet.availableFC);
     walletStore.setBalance(data.wallet.availableFC);
     walletStore.setFcBalance(data.wallet.availableFC);
+    walletStore.setPlatformBalance(platform);
+    walletStore.setReferralBalance(referral);
+    walletStore.setWithdrawableBalance(Math.max(0, data.wallet.availableFC - data.wallet.pendingFC));
+    walletStore.setTransactions(data.transactions);
+    walletStore.setWithdrawals(data.withdrawals);
+    walletStore.setError(null);
+  }
+
+  /**
+   * Hydrate the Zustand wallet store with real data. Always sets the loading
+   * flag false in the end so the Wallet UI never sticks on a spinner, even
+   * when Supabase errors or returns empty data.
+   */
+  async hydrateWallet(userId: string): Promise<void> {
+    if (!userId) {
+      const store = useWalletStore.getState();
+      store.setLoading(false);
+      store.setError('User not authenticated');
+      return;
+    }
+
+    const store = useWalletStore.getState();
+    store.setLoading(true);
+    store.setError(null);
+    try {
+      const data = await this.loadWalletData(userId);
+      const { platform, referral } = deriveSourceBalances(data.transactions, data.wallet.availableFC);
+      store.setBalance(data.wallet.availableFC);
+      store.setFcBalance(data.wallet.availableFC);
+      store.setPlatformBalance(platform);
+      store.setReferralBalance(referral);
+      // Withdrawable = available minus pending, floored at 0.
+      store.setWithdrawableBalance(Math.max(0, data.wallet.availableFC - data.wallet.pendingFC));
+      store.setTransactions(data.transactions);
+      store.setWithdrawals(data.withdrawals);
+    } catch (error: any) {
+      store.setError(error?.message || 'Failed to load wallet');
+    } finally {
+      store.setLoading(false);
+    }
   }
 
   // Get pending rewards
@@ -224,11 +268,11 @@ class WalletDataService {
 
       if (error) throw error;
 
-      return data.map(tx => ({
+      return (data || []).map(tx => ({
         id: tx.id,
-        type: tx.type,
+        type: tx.transaction_type as Transaction['type'],
         amount: tx.amount,
-        status: tx.status,
+        status: tx.status as Transaction['status'],
         description: tx.description || '',
         timestamp: tx.created_at,
         metadata: tx.metadata,
@@ -240,5 +284,44 @@ class WalletDataService {
   }
 }
 
+// ─── Source-balance derivation ─────────────────────────────
+// Splits the available balance into platform vs referral buckets
+// based on each transaction's reference_type / description. Falls
+// back to the full available balance if no referral signal exists.
+
+const REFERRAL_HINTS = [
+  'refer',
+  'referral',
+  'invite',
+  'friend',
+  'team',
+  'bonus',
+];
+
+function isReferralTx(tx: Transaction): boolean {
+  const meta = tx.metadata || {};
+  const refType = String(meta?.reference_type || meta?.source || '');
+  const desc = String(tx.description || '').toLowerCase();
+  return REFERRAL_HINTS.some((h) => refType.toLowerCase().includes(h) || desc.includes(h));
+}
+
+function deriveSourceBalances(
+  transactions: Transaction[],
+  availableFC: number,
+): { platform: number; referral: number } {
+  let referral = 0;
+  for (const tx of transactions) {
+    // Only completed positive earnings count toward the buckets.
+    if (tx.status !== 'completed' || tx.amount <= 0) continue;
+    if (isReferralTx(tx)) referral += tx.amount;
+  }
+
+  // Clamp so the two buckets never exceed the real available balance.
+  referral = Math.min(referral, availableFC);
+  const platform = Math.max(0, availableFC - referral);
+  return { platform, referral };
+}
+
 // Singleton instance
 export const walletDataService = new WalletDataService();
+

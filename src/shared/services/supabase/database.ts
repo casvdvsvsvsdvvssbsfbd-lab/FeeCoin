@@ -11,7 +11,7 @@ export const db = {
       offset?: number
     }
   ) => {
-    let query = supabase.from(table).select(options?.columns?.join(',') || '*')
+    let query = (supabase as any).from(table).select(options?.columns?.join(',') || '*')
 
     if (options?.filter) {
       Object.entries(options.filter).forEach(([key, value]) => {
@@ -63,7 +63,7 @@ export const db = {
     table: string,
     filter: Record<string, any>
   ) => {
-    let query = supabase.from(table).delete()
+    let query = (supabase as any).from(table).delete()
 
     Object.entries(filter).forEach(([key, value]) => {
       query = query.eq(key, value)

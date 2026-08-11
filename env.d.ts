@@ -26,7 +26,9 @@ interface ImportMetaEnv {
   readonly NEXT_PUBLIC_ENABLE_BACKGROUND_SYNC: string;
   readonly NEXT_PUBLIC_MAX_RETRY_ATTEMPTS: string;
   readonly NEXT_PUBLIC_REQUEST_TIMEOUT: string;
-  readonly NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY: string;
+readonly NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY: string;
+  readonly VITE_TELEGRAM_BOT_NAME: string;
+  readonly VITE_TELEGRAM_BOT_URL: string;
 }
 
 interface ImportMeta {

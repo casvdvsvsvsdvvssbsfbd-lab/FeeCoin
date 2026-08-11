@@ -45,28 +45,36 @@ export interface Achievement {
 class ProfileDataService {
   private analytics = useAnalytics();
 
-  // Fetch user profile
+  // Fetch user profile (users joined with profiles)
   async getProfile(userId: string): Promise<ProfileData> {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
+      const { data: user, error: userError } = await supabase
+        .from('users')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      if (userError || !user) throw userError || new Error('User not found');
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
 
       return {
-        firstName: data.first_name || 'User',
-        lastName: data.last_name || '',
-        username: data.username || 'user',
-        email: data.email,
-        phone: data.phone,
-        avatarUrl: data.avatar_url,
-        bio: data.bio,
-        country: data.country || 'US',
-        language: data.language || 'en',
-        createdAt: data.created_at,
+        firstName: user.first_name || 'User',
+        lastName: user.last_name || '',
+        username: user.username || 'user',
+        email: user.email != null ? user.email : undefined,
+        phone: user.phone != null ? user.phone : undefined,
+        avatarUrl: profile?.avatar_url != null ? profile.avatar_url : undefined,
+        bio: profile?.bio != null ? profile.bio : undefined,
+        country: profile?.country_code || 'US',
+        language: profile?.language_code || 'en',
+        createdAt: profile?.created_at || user.created_at,
       };
     } catch (error) {
       console.error('Failed to fetch profile:', error);
@@ -84,22 +92,22 @@ class ProfileDataService {
   // Fetch user statistics
   async getUserStats(userId: string): Promise<UserStats> {
     try {
-      // Get total earned
+      // Get total earned from completed credit transactions
       const { data: earnings } = await supabase
         .from('transactions')
         .select('amount')
         .eq('user_id', userId)
-        .eq('type', 'reward')
+        .eq('transaction_type', 'credit')
         .eq('status', 'completed');
 
       const totalEarned = earnings?.reduce((sum, tx) => sum + tx.amount, 0) || 0;
 
-      // Get tasks completed
-      const { count: tasksCount } = await supabase
-        .from('user_tasks')
-        .select('*', { count: 'exact', head: true })
+      // Get profile aggregate stats
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
         .eq('user_id', userId)
-        .eq('status', 'completed');
+        .maybeSingle();
 
       // Get referrals count
       const { count: referralsCount } = await supabase
@@ -109,13 +117,13 @@ class ProfileDataService {
 
       return {
         totalEarned,
-        totalSpent: 0,
-        tasksCompleted: tasksCount || 0,
+        totalSpent: profile?.total_withdrawn || 0,
+        tasksCompleted: profile?.tasks_completed || 0,
         surveysCompleted: 0,
-        offersCompleted: 0,
+        offersCompleted: profile?.apps_installed || 0,
         referralsCount: referralsCount || 0,
-        streakDays: 0,
-        level: 1,
+        streakDays: profile?.current_streak || 0,
+        level: profile?.level || 1,
         badges: [],
       };
     } catch (error) {
@@ -134,25 +142,27 @@ class ProfileDataService {
     }
   }
 
-  // Fetch achievements
+  // Fetch achievements catalog
   async getAchievements(userId: string): Promise<Achievement[]> {
     try {
       const { data, error } = await supabase
         .from('achievements')
         .select('*')
-        .eq('user_id', userId)
-        .order('unlocked_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      return data.map(ach => ({
+      return (data || []).map(ach => ({
         id: ach.id,
-        title: ach.title,
-        description: ach.description,
-        icon: ach.icon || '🏆',
-        unlockedAt: ach.unlocked_at,
-        progress: ach.progress || 0,
-        target: ach.target || 1,
+        title: ach.name,
+        description: ach.description || '',
+        icon: ach.icon_url || '🏆',
+        unlockedAt: ach.created_at,
+        progress: 0,
+        target: (() => {
+          const c = ach.criteria as { target?: unknown } | null;
+          return typeof c?.target === 'number' ? c.target : 1;
+        })(),
       }));
     } catch (error) {
       console.error('Failed to fetch achievements:', error);
@@ -160,23 +170,30 @@ class ProfileDataService {
     }
   }
 
-  // Update profile
+  // Update profile (name fields on users, cosmetic fields on profiles)
   async updateProfile(userId: string, updates: Partial<ProfileData>): Promise<boolean> {
     try {
-      const { error } = await supabase
-        .from('profiles')
+      const { error: userError } = await supabase
+        .from('users')
         .update({
-          first_name: updates.firstName,
-          last_name: updates.lastName,
-          username: updates.username,
-          bio: updates.bio,
-          country: updates.country,
-          language: updates.language,
-          updated_at: new Date().toISOString(),
+          ...(updates.firstName ? { first_name: updates.firstName } : {}),
+          ...(updates.lastName ? { last_name: updates.lastName } : {}),
+          ...(updates.username ? { username: updates.username } : {}),
         })
         .eq('id', userId);
 
-      if (error) throw error;
+      if (userError) throw userError;
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          ...(updates.bio !== undefined ? { bio: updates.bio } : {}),
+          ...(updates.country ? { country_code: updates.country } : {}),
+          ...(updates.language ? { language_code: updates.language } : {}),
+        })
+        .eq('user_id', userId);
+
+      if (profileError) throw profileError;
 
       // Update auth store
       const authStore = useAuthStore.getState();
@@ -212,6 +229,32 @@ class ProfileDataService {
       stats,
       achievements,
     };
+  }
+
+  /**
+   * Hydrate the auth store's profile with real data. Since the profile
+   * screen reads identity from the auth store, we update it directly with
+   * the fetched/profile data and persist the latest stats for display.
+   */
+  async hydrateProfile(userId: string): Promise<{ profile: ProfileData; stats: UserStats } | null> {
+    if (!userId) return null;
+    try {
+      const data = await this.loadProfileData(userId);
+      // Update the auth store profile so the Profile screen shows real data.
+      const authStore = useAuthStore.getState();
+      authStore.setProfile({
+        ...(authStore.profile || {}),
+        ...(data.profile.firstName ? { first_name: data.profile.firstName } : {}),
+        ...(data.profile.lastName ? { last_name: data.profile.lastName } : {}),
+        username: data.profile.username,
+        language_code: data.profile.language,
+        country_code: data.profile.country,
+      });
+      return { profile: data.profile, stats: data.stats };
+    } catch (error) {
+      console.error('Failed to hydrate profile:', error);
+      return null;
+    }
   }
 }
 

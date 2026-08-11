@@ -100,7 +100,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const copyReferralLink = async () => {
     if (!playerState.player) return;
     
-    const link = `https://t.me/feecoin_bot?start=ref_${playerState.player.telegram_id}`;
+const viteEnv = typeof import.meta !== 'undefined' ? (import.meta as any)?.env : undefined;
+    const botUsername = viteEnv?.VITE_TELEGRAM_BOT_NAME || 'feecash_bot';
+    const link = `https://t.me/${botUsername}?start=ref_${playerState.player.telegram_id}`;
     try {
       await navigator.clipboard.writeText(link);
       setPlayerState(prev => ({ ...prev, referralLink: link }));

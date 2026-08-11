@@ -60,7 +60,6 @@ class UserSyncService {
             phone: existingUser.phone, // Keep existing phone
             last_login_at: new Date().toISOString(),
             last_active_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
           })
           .eq('id', existingUser.id)
           .select()
@@ -122,7 +121,7 @@ class UserSyncService {
     const { error } = await supabase.from('profiles').insert({
       user_id: userId,
       language_code: telegramUser?.language_code || deviceInfo?.languageCode || 'en',
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      timezone: Intl.DateTimeFormat()?.resolvedOptions()?.timeZone || 'UTC',
       level: 1,
       rank: 'bronze',
       total_earned: 0,
@@ -222,16 +221,16 @@ class UserSyncService {
     const userAgent = navigator.userAgent;
     const platform = navigator.platform;
     const language = navigator.language;
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timezone = Intl.DateTimeFormat()?.resolvedOptions()?.timeZone;
 
     const raw = `${userAgent}-${platform}-${language}-${timezone}`;
-    
+
     // Simple hash function
     let hash = 0;
     for (let i = 0; i < raw.length; i++) {
       const char = raw.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
+      hash = hash & hash; // Convert to 32bit integer
     }
 
     return `device_${Math.abs(hash).toString(16)}`;
@@ -280,17 +279,14 @@ class UserSyncService {
     return stored ? JSON.parse(stored) : null;
   }
 
-  public async updateUser(data: Partial<any>): Promise<any> {
+  public async updateUser(data: Record<string, any>): Promise<any> {
     if (!this.currentUser) {
       throw new Error('User not synced');
     }
 
     const { data: updatedUser, error } = await supabase
       .from('users')
-      .update({
-        ...data,
-        updated_at: new Date().toISOString(),
-      })
+      .update(data as never)
       .eq('id', this.currentUser.id)
       .select()
       .single();
@@ -303,17 +299,14 @@ class UserSyncService {
     return updatedUser;
   }
 
-  public async updateProfile(data: Partial<any>): Promise<any> {
+  public async updateProfile(data: Record<string, any>): Promise<any> {
     if (!this.currentUser) {
       throw new Error('User not synced');
     }
 
     const { data: updatedProfile, error } = await supabase
       .from('profiles')
-      .update({
-        ...data,
-        updated_at: new Date().toISOString(),
-      })
+      .update(data as never)
       .eq('user_id', this.currentUser.id)
       .select()
       .single();

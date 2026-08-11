@@ -7,9 +7,16 @@ import { useNavigation } from '../../shared/hooks/use-navigation';
 export const SplashScreen: React.FC = () => {
   const { navigate } = useNavigation();
 
-  useEffect(() => {
+useEffect(() => {
     const timer = setTimeout(() => navigate('welcome'), 2500);
-    return () => clearTimeout(timer);
+    // Hard fallback: if the normal navigation somehow doesn't fire (e.g. a
+    // stale/blocked store), force the app off the splash screen so it never
+    // sits on it forever.
+    const safety = setTimeout(() => navigate('welcome'), 5000);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(safety);
+    };
   }, [navigate]);
 
   return (

@@ -2,48 +2,79 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigation } from '../../shared/hooks/use-navigation';
+import { useNavigationActions } from '../../shared/hooks/use-navigation';
 import { useAuthStore } from '../../lib/stores/auth-store';
 import { useWalletStore } from '../../lib/stores/wallet-store';
 import { useAppStore } from '../../lib/stores/app-store';
 import { homeScreenDataService } from './services/home-data.service';
 import { formatFC } from '../../lib/utils/format';
+import { toastStore } from '../../lib/notifications/toast-store';
+
+// ============================================================
+// HOME SCREEN
+// - Balance Card (from wallet store)
+// - AdsGram "EARN" reward button (Block ID: 42176)
+// - Daily Streak indicator
+// - Today's stats
+// - Quick Access cards (Tasks / Referral / Missions)
+// - Recent activity
+// ============================================================
+
+const ADSGRAM_BLOCK_ID = '42176';
 
 const EarnButton: React.FC = () => {
   const [isEarning, setIsEarning] = useState(false);
-  const [earned, setEarned] = useState(0);
-  const [showAnimation, setShowAnimation] = useState(false);
-  const user = useAuthStore((state) => state.user);
-  const wallet = useWalletStore((state) => state);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const handleEarn = async () => {
-    if (isEarning || !user?.id) return;
+    if (isEarning) return;
     setIsEarning(true);
-    setShowAnimation(true);
+    setStatusMessage(null);
 
-    try {
-      const reward = await homeScreenDataService.trackAdView('banner', 'system', user.id);
-      setEarned(reward);
-    } catch (error) {
-      console.error('Failed to earn:', error);
+    if (typeof window === 'undefined' || !window.Adsgram) {
+      console.warn('AdsGram SDK is not available on window');
+      const errorMsg = "Hozircha reklama topilmadi, keyinroq urinib ko'ring";
+      setStatusMessage({ text: errorMsg, type: 'error' });
+      toastStore.error(errorMsg);
+      setIsEarning(false);
+      return;
     }
 
-    setTimeout(() => {
+    try {
+      const AdController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
+      const result = await AdController.show();
+
+      // Video watched successfully
+      if (result && (result.done || result.state === 'reward')) {
+        const successMsg = "Reklama ko'rildi! Coin tez orada qo'shiladi";
+        setStatusMessage({ text: successMsg, type: 'success' });
+        toastStore.success(successMsg);
+      } else {
+        const errorMsg = "Hozircha reklama topilmadi, keyinroq urinib ko'ring";
+        setStatusMessage({ text: errorMsg, type: 'error' });
+        toastStore.error(errorMsg);
+      }
+    } catch (error) {
+      console.error('AdsGram reward video error:', error);
+      const errorMsg = "Hozircha reklama topilmadi, keyinroq urinib ko'ring";
+      setStatusMessage({ text: errorMsg, type: 'error' });
+      toastStore.error(errorMsg);
+    } finally {
       setIsEarning(false);
-      setShowAnimation(false);
-    }, 1500);
+    }
   };
 
   return (
-    <div className="relative flex items-center justify-center my-4">
+    <div className="relative flex flex-col items-center justify-center my-4">
       <motion.button
         onClick={handleEarn}
+        disabled={isEarning}
         whileTap={{ scale: 0.9 }}
         className={`
           w-40 h-40 rounded-full flex flex-col items-center justify-center
           bg-gradient-to-br from-[#00FF88] to-[#00d4aa]
           shadow-[0_0_60px_rgba(0,255,136,0.3)]
-          ${isEarning ? 'animate-pulse' : ''}
+          ${isEarning ? 'animate-pulse opacity-80 cursor-not-allowed' : ''}
           transition-all duration-300
         `}
       >
@@ -55,20 +86,23 @@ const EarnButton: React.FC = () => {
           {isEarning ? '✦' : '▶'}
         </motion.span>
         <span className="text-xs font-bold text-[#0A0E14]/70 mt-1">
-          {isEarning ? 'EARNING...' : 'EARN'}
+          {isEarning ? 'LOADING...' : 'EARN'}
         </span>
       </motion.button>
 
       <AnimatePresence>
-        {showAnimation && (
+        {statusMessage && (
           <motion.div
-            initial={{ opacity: 1, y: 0 }}
-            animate={{ opacity: 0, y: -80 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.5 }}
-            className="absolute -top-4 text-xl font-black text-[#00FF88]"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className={`mt-3 px-4 py-2 rounded-xl text-xs font-semibold text-center max-w-xs ${
+              statusMessage.type === 'success'
+                ? 'bg-[#00FF88]/20 text-[#00FF88] border border-[#00FF88]/30'
+                : 'bg-red-500/20 text-red-400 border border-red-500/30'
+            }`}
           >
-            +{formatFC(earned)} FC
+            {statusMessage.text}
           </motion.div>
         )}
       </AnimatePresence>
@@ -77,28 +111,40 @@ const EarnButton: React.FC = () => {
 };
 
 export const HomeScreen: React.FC = () => {
-  const { navigate } = useNavigation();
+  const { navigate } = useNavigationActions();
   const user = useAuthStore((state) => state.profile);
   const wallet = useWalletStore((state) => state);
   const app = useAppStore((state) => state);
   const [recentRewards, setRecentRewards] = useState<any[]>([]);
+  const [earnings, setEarnings] = useState({ today: 0, weekly: 0, monthly: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
+  // Load home data. Always set isLoading=false in finally so the
+  // screen never stays stuck on a spinner.
   useEffect(() => {
+    let cancelled = false;
     const loadData = async () => {
-      if (!user?.id) return;
-      
+      const userId = user?.id || 'demo-user-001';
       try {
-        const data = await homeScreenDataService.loadHomeScreenData(user.id);
+        const data = await homeScreenDataService.loadHomeScreenData(userId);
+        if (cancelled) return;
         setRecentRewards(data.recentRewards);
+        setEarnings(data.earnings);
+        // Sync wallet balance from server if available
+        if (data.wallet.availableFC > 0) {
+          wallet.setBalance(data.wallet.availableFC);
+          wallet.setFcBalance(data.wallet.availableFC);
+        }
       } catch (error) {
         console.error('Failed to load home data:', error);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     loadData();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   const displayUser = {
@@ -107,20 +153,7 @@ export const HomeScreen: React.FC = () => {
     username: user?.username || 'user',
   };
 
-  const displayWallet = {
-    availableFC: wallet.balance,
-    pendingFC: 0,
-    energy: app.energy,
-    maxEnergy: app.maxEnergy,
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0A0E14]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
-      </div>
-    );
-  }
+  const streak = app.streak || 0;
 
   return (
     <div className="min-h-screen bg-[#0A0E14] pb-24">
@@ -142,21 +175,28 @@ export const HomeScreen: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Daily Streak */}
+        <div className="mt-3 flex items-center gap-2">
+          <div className="glass-card px-3 py-1.5 flex items-center gap-2">
+            <span className="text-base">🔥</span>
+            <span className="text-xs font-bold text-white">{streak} kunlik streak</span>
+          </div>
+        </div>
       </div>
 
-      <div className="px-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+      <div className="px-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
         {/* Balance Card */}
         <motion.div
           className="glass-card p-6 mb-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Available Balance</p>
+          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Mavjud balans</p>
           <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-black text-[#f0b90b]">{formatFC(displayWallet.availableFC)}</span>
-            <span className="text-sm font-bold text-[#f0b90b]/60">FC</span>
+<span className="text-3xl font-black text-[#f0b90b] tabular-nums">{formatFC(wallet.balance)}</span>
           </div>
-          
+
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
             <div>
               <p className="text-[10px] text-white/40">Energy</p>
@@ -165,40 +205,18 @@ export const HomeScreen: React.FC = () => {
                   <motion.div
                     className="h-full rounded-full bg-gradient-to-r from-[#00FF88] to-[#00BFFF]"
                     initial={{ width: 0 }}
-                    animate={{ width: `${displayWallet.energy}%` }}
+                    animate={{ width: `${app.energy}%` }}
                     transition={{ duration: 1, ease: 'easeOut' }}
                   />
                 </div>
-                <span className="text-xs font-semibold text-white/70">{displayWallet.energy}%</span>
+                <span className="text-xs font-semibold text-white/70">{app.energy}%</span>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-[10px] text-white/40">Pending</p>
-              <p className="text-xs font-semibold text-white/70">{formatFC(displayWallet.pendingFC)} FC</p>
+              <p className="text-[10px] text-white/40">Kutilayotgan</p>
+<p className="text-xs font-semibold text-white/70">{formatFC(0)}</p>
             </div>
           </div>
-        </motion.div>
-
-        {/* Withdrawal Progress */}
-        <motion.div
-          className="glass-card p-4 mb-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-white/40">Withdrawal Progress</p>
-            <p className="text-xs font-semibold text-[#00FF88]">0%</p>
-          </div>
-          <div className="w-full h-2 rounded-full bg-white/5">
-          <motion.div
-            className="h-full rounded-full bg-gradient-to-r from-[#00FF88] to-[#f0b90b]"
-            initial={{ width: 0 }}
-            animate={{ width: `0%` }}
-            transition={{ duration: 1.5, delay: 0.3, ease: 'easeOut' }}
-          />
-        </div>
-        <p className="text-[10px] text-white/30 mt-1">Withdrawal progress will appear here</p>
         </motion.div>
 
         {/* Earnings Row */}
@@ -206,16 +224,16 @@ export const HomeScreen: React.FC = () => {
           className="flex gap-2 mb-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.1 }}
         >
           {[
-            { label: 'Today', value: 0, color: '#00FF88' },
-            { label: 'Week', value: 0, color: '#00BFFF' },
-            { label: 'Month', value: 0, color: '#f0b90b' },
+            { label: 'Bugun', value: earnings.today, color: '#00FF88' },
+            { label: 'Hafta', value: earnings.weekly, color: '#00BFFF' },
+            { label: 'Oy', value: earnings.monthly, color: '#f0b90b' },
           ].map((stat) => (
             <div key={stat.label} className="flex-1 glass-card p-3 text-center">
               <p className="text-[10px] text-white/40">{stat.label}</p>
-              <p className="text-sm font-bold mt-1" style={{ color: stat.color }}>
+              <p className="text-sm font-bold mt-1 tabular-nums" style={{ color: stat.color }}>
                 {formatFC(stat.value)}
               </p>
             </div>
@@ -230,17 +248,17 @@ export const HomeScreen: React.FC = () => {
           className="flex gap-2 mb-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.2 }}
         >
           {[
-            { icon: '🎁', label: 'Daily Bonus', color: '#00FF88' },
-            { icon: '👥', label: 'Referral', color: '#00BFFF' },
-            { icon: '🏆', label: 'Missions', color: '#f0b90b' },
+            { icon: '📋', label: 'Tasks', target: 'tasks' as const },
+            { icon: '👥', label: 'Referral', target: 'referral' as const },
+            { icon: '🏆', label: 'Missions', target: 'missions' as const },
           ].map((action) => (
             <div
               key={action.label}
               className="flex-1 glass-card p-3 flex flex-col items-center gap-2 cursor-pointer hover:bg-white/5 transition-all"
-              onClick={() => action.label === 'Referral' ? navigate('referral') : action.label === 'Missions' ? navigate('missions') : {}}
+              onClick={() => navigate(action.target)}
             >
               <span className="text-xl">{action.icon}</span>
               <span className="text-[10px] font-semibold text-white/60">{action.label}</span>
@@ -250,25 +268,25 @@ export const HomeScreen: React.FC = () => {
 
         {/* Recent Activity */}
         <div className="mb-4">
-          <p className="section-title mb-3 px-1">Recent Activity</p>
+          <p className="section-title mb-3 px-1">Yaqin faoliyat</p>
           {recentRewards.length > 0 ? recentRewards.slice(0, 4).map((reward, i) => (
             <motion.div
               key={reward.id}
               className="glass-card p-3 mb-2 flex items-center gap-3"
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 + i * 0.05 }}
+              transition={{ delay: 0.3 + i * 0.05 }}
             >
               <span className="text-lg">{reward.icon}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-white truncate">{reward.description}</p>
                 <p className="text-[10px] text-white/40">{reward.timestamp}</p>
               </div>
-              <span className="text-xs font-bold text-[#00FF88]">+{formatFC(reward.amount)}</span>
+<span className="text-xs font-bold text-[#00FF88]">+{formatFC(reward.amount)}</span>
             </motion.div>
           )) : (
             <div className="glass-card p-4 text-center text-white/40 text-xs">
-              No recent activity
+              Yaqin faoliyat yo'q
             </div>
           )}
         </div>

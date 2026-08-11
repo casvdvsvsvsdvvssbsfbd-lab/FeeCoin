@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS levels (
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS ranks (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(50) UNIQUE NOT NULL,
     title VARCHAR(100) NOT NULL,
     min_fc DECIMAL(20, 2) NOT NULL,

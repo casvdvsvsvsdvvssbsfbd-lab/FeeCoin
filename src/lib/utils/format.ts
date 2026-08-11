@@ -2,6 +2,21 @@ export function formatFC(amount: number): string {
   return new Intl.NumberFormat('en-US').format(amount) + ' FC'
 }
 
+/** Plain number (no currency suffix) with grouping — for card balances. */
+export function formatFCNum(amount: number): string {
+  return new Intl.NumberFormat('en-US').format(amount)
+}
+
+/** Approximate USD equivalent of an FC amount (rate 100 FC ≈ $1). */
+export function fcToUsd(amount: number): string {
+  const usd = amount / 100
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(usd)
+}
+
 export function formatCurrency(amount: number, currency: 'FC' | 'USD' = 'FC'): string {
   if (currency === 'USD') {
     return new Intl.NumberFormat('en-US', {

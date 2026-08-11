@@ -1,0 +1,14 @@
+# ============================================================
+# Supabase project configuration
+# Used by `supabase` CLI for local dev / functions serving.
+# The remote project is linked via `supabase link`.
+# ============================================================
+
+project_id = "watch-to-earn-offerwall"
+
+[functions.telegram-auth]
+enabled = true
+verify_jwt = false
+# Entrypoint + filename for the Deno edge function
+# (defaults chosen automatically for supabase/functions/<name>/index.ts)
+

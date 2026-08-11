@@ -3,6 +3,8 @@
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string;
   readonly VITE_SUPABASE_ANON_KEY: string;
+  readonly VITE_TELEGRAM_BOT_NAME: string;
+  readonly VITE_TELEGRAM_BOT_URL: string;
 }
 
 interface ImportMeta {
@@ -66,9 +68,31 @@ declare namespace Telegram {
 }
 
 declare global {
+  interface ShowPromiseResult {
+    done: boolean;
+    description: string;
+    state: string;
+    error?: boolean;
+  }
+
+  interface AdController {
+    show(): Promise<ShowPromiseResult>;
+    addEventListener?(event: string, handler: () => void): void;
+    removeEventListener?(event: string, handler: () => void): void;
+  }
+
+  interface AdsgramInitParams {
+    blockId: string;
+    debug?: boolean;
+    goodsData?: any;
+  }
+
   interface Window {
     Telegram?: {
       WebApp?: Telegram.WebApp.WebApp;
+    };
+    Adsgram?: {
+      init(params: AdsgramInitParams): AdController;
     };
   }
 }

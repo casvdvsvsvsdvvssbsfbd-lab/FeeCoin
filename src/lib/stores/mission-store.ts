@@ -44,7 +44,8 @@ export const useMissionStore = create<MissionState>((set) => ({
   setMissions: (missions) => set({
     missions,
     activeMissions: missions.filter((m: any) => m.status === 'active'),
-    completedMissions: missions.filter((m: any) => m.status === 'completed'),
+    completedMissions: missions.filter((m: any) => m.status === 'completed' || m.status === 'claimed'),
+    claimedMissions: missions.filter((m: any) => m.status === 'claimed'),
     lastUpdated: new Date()
   }),
 

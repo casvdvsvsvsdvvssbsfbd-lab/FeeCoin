@@ -3,65 +3,77 @@
 
 import { supabase } from '@/lib/supabase/client'
 import { telegramService } from '@/lib/telegram/telegram.service'
+import { authenticateWithTelegram } from '@/lib/telegram/init-data-auth'
 import type { User, LoginCredentials, AuthError } from '../types'
 import { AUTH_CONFIG } from '../constants/config'
 
 export const authService = {
   async login(credentials: LoginCredentials): Promise<User> {
     try {
-      // Get Telegram init data from the service
-      const initData = telegramService.getInitData()
-      
-      if (!initData || !initData.user) {
-        throw this.handleError({
-          code: 'NO_TELEGRAM_DATA',
-          message: 'Telegram initialization data not found',
-        })
-      }
+      // Prefer server-validated Telegram auth (Edge Function) when possible.
+      // This validates initData HMAC-SHA256 server-side and returns a
+      // matching Supabase user (auto-created/found by telegram_id).
+      const profile = await authenticateWithTelegram();
 
-      const telegramUser = initData.user
-
-      // Sign in with Telegram token (using auth.signInWithPassword as placeholder)
-      // In production, this would call a custom Supabase Edge Function
-      // that validates the Telegram hash and creates/updates the user
-      
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: `telegram_${telegramUser.id}@telegram.user`,
-        password: credentials.telegram_token,
-      })
-
-      if (error) {
-        // If user doesn't exist, create them via edge function
-        // For now, throw error
-        throw this.handleError({
-          code: error.code || 'AUTH_ERROR',
-          message: error.message || 'Telegram authentication failed',
-        })
-      }
-
-      if (!data.user) {
-        throw this.handleError({
-          code: 'NO_USER',
-          message: 'Authentication failed',
-        })
-      }
-
-      // Update user metadata with Telegram data
-      await supabase.auth.updateUser({
-        data: {
-          telegram_id: telegramUser.id,
-          username: telegramUser.username,
-          first_name: telegramUser.firstName,
-          last_name: telegramUser.lastName,
-          photo_url: telegramUser.photoUrl,
-          is_premium: telegramUser.isPremium,
-          language_code: telegramUser.languageCode,
-        },
-      })
-
-      return this.mapSupabaseUser(data.user)
+      return {
+        id: profile.userId,
+        telegram_id: String(profile.telegramId),
+        username: profile.username,
+        first_name: profile.firstName,
+        last_name: profile.lastName,
+        photo_url: null,
+        created_at: '',
+        updated_at: '',
+      };
     } catch (error) {
-      throw this.handleError(error as AuthError)
+      // Fallback: legacy local initData path (dev-only compatibility).
+      try {
+        const initData = telegramService.getInitData()
+
+        if (!initData || !initData.user) {
+          throw this.handleError({
+            code: 'NO_TELEGRAM_DATA',
+            message: 'Telegram initialization data not found',
+          })
+        }
+
+        const telegramUser = initData.user
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: `telegram_${telegramUser.id}@telegram.user`,
+          password: credentials.telegram_token,
+        })
+
+        if (error) {
+          throw this.handleError({
+            code: error.code || 'AUTH_ERROR',
+            message: error.message || 'Telegram authentication failed',
+          })
+        }
+
+        if (!data.user) {
+          throw this.handleError({
+            code: 'NO_USER',
+            message: 'Authentication failed',
+          })
+        }
+
+        await supabase.auth.updateUser({
+          data: {
+            telegram_id: telegramUser.id,
+            username: telegramUser.username,
+            first_name: telegramUser.firstName,
+            last_name: telegramUser.lastName,
+            photo_url: telegramUser.photoUrl,
+            is_premium: telegramUser.isPremium,
+            language_code: telegramUser.languageCode,
+          },
+        })
+
+        return this.mapSupabaseUser(data.user)
+      } catch (innerError) {
+        throw this.handleError(innerError as AuthError);
+      }
     }
   },
 
