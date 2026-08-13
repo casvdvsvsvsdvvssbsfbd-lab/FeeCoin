@@ -109,7 +109,7 @@ export const HomeScreen: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     const loadData = async () => {
-      const userId = user?.id || 'demo-user-001';
+      const userId = user?.id || '00000000-0000-0000-0000-000000000000';
       try {
         const data = await homeScreenDataService.loadHomeScreenData(userId);
         if (cancelled) return;

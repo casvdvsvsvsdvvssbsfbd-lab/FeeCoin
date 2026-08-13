@@ -1,36 +1,22 @@
-import type { Metadata, Viewport } from 'next';
-import './globals.css';
+import Script from 'next/script';
 
-export const metadata: Metadata = {
-  title: 'FeeCoin - Watch to Earn',
-  description: 'Turn your free time into real rewards. Watch, complete tasks, and earn FC tokens.',
-  other: {
-    'apple-mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-status-bar-style': 'black-translucent',
-  },
-};
-
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1.0,
-  maximumScale: 1.0,
-  userScalable: false,
-  viewportFit: 'cover',
-  themeColor: '#0a0a0d',
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,wght@0,400;0,600;0,700;1,600;1,700&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-        <script src="https://telegram.org/js/telegram-web-app.js" async />
+        {/* Monetag SDK — to'g'ri URL va data atributlari bilan */}
+        <Script 
+          src="https://libtl.com/sdk.js"
+          strategy="afterInteractive"
+          data-zone="11548562"
+          data-sdk="show_11548562"
+        />
+        
+        {/* Telegram WebApp Script — to'g'ri URL */}
+        <Script 
+          src="https://telegram.org/js/telegram-web-app.js" 
+          strategy="beforeInteractive" 
+        />
       </head>
       <body>
         {children}

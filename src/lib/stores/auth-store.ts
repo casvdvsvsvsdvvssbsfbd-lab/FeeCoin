@@ -236,7 +236,7 @@ async function signInTestUser(store: AuthState): Promise<void> {
  */
 function setGuestFallback(store: AuthState, message: string): void {
   store.setUser({
-    id: 'guest-demo-user',
+    id: '00000000-0000-0000-0000-000000000000',  // ← Haqiqiy UUID format
     firstName: 'Guest',
     lastName: '',
     username: 'guest',
@@ -244,7 +244,7 @@ function setGuestFallback(store: AuthState, message: string): void {
     telegramId: 0,
   });
   store.setProfile({
-    user_id: 'guest-demo-user',
+    user_id: '00000000-0000-0000-0000-000000000000',  // ← Haqiqiy UUID format
     username: 'guest',
     first_name: 'Guest',
     language_code: 'en',
