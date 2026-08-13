@@ -9,28 +9,82 @@ import { useAppStore } from '../../lib/stores/app-store';
 import { homeScreenDataService } from './services/home-data.service';
 import { formatFC } from '../../lib/utils/format';
 import { toastStore } from '../../lib/notifications/toast-store';
+import { MonetagProvider } from '../../lib/integrations/providers/monetag.provider';
+import { ProviderConfig, AdRequest } from '../../lib/integrations/types';
 
-// ============================================================
-// HOME SCREEN
-// - Balance Card (from wallet store)
-// - Monetag "EARN" reward button (Zone ID: 11548562)
-// - Daily Streak indicator
-// - Today's stats
-// - Quick Access cards (Tasks / Referral / Missions)
-// - Recent activity
-// ============================================================
+// Temporary Monetag config - should be loaded from a more robust configuration service
+const monetagConfig: ProviderConfig = {
+  id: 'monetag',
+  name: 'Monetag',
+  type: 'ad_network',
+  endpoint: 'https://libtl.com/sdk.js', // SDK URL, not an API endpoint
+  isEnabled: true,
+  priority: 1,
+  countries: ['US'], // Example, adjust as needed
+  languages: ['en'], // Example, adjust as needed
+  settings: { zoneId: '11548562' },
+  timeout: 10000,
+  retryAttempts: 3,
+  retryDelay: 1000,
+};
+
+const monetagProvider = new MonetagProvider(monetagConfig);
+
+// Declare AdsGram on window interface
+declare global {
+  interface Window {
+    AdsGram?: {
+      init: (params: { blockId: string; debug?: boolean }) => {
+        show: () => Promise<void>;
+      };
+    };
+  }
+}
 
 const EarnButton: React.FC = () => {
   const [isEarning, setIsEarning] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const auth = useAuthStore();
 
-  const handleEarn = async () => {
+  const handleEarnMonetag = async () => {
     if (isEarning) return;
     setIsEarning(true);
     setStatusMessage(null);
 
-    if (typeof window === 'undefined' || typeof (window as any).show_11548562 === 'undefined') {
-      const errorMsg = "Hozircha reklama topilmadi, keyinroq urinib ko'ring";
+    const adRequest: AdRequest = {
+      userId: auth.profile?.id || 'dummy-user-id',
+      adType: 'pop',
+      placement: 'earn_button_monetag',
+      deviceId: 'dummy-device-id',
+      ipAddress: '127.0.0.1',
+      userAgent: navigator.userAgent,
+      countryCode: auth.profile?.country_code || 'US',
+      language: navigator.language || 'en',
+      sessionId: 'dummy-session-id',
+    };
+
+    try {
+      await monetagProvider.requestAd(adRequest);
+      const successMsg = "Monetag reklama ko'rildi! Coin tez orada qo'shiladi";
+      setStatusMessage({ text: successMsg, type: 'success' });
+      toastStore.success(successMsg);
+    } catch (e: any) {
+      console.error("Error displaying Monetag ad:", e);
+      const errorMsg = `Monetag reklama topilmadi: ${e.message}`;
+      setStatusMessage({ text: errorMsg, type: 'error' });
+      toastStore.error(errorMsg);
+    } finally {
+      setIsEarning(false);
+    }
+  };
+
+  const handleEarnAdsGram = async () => {
+    if (isEarning) return;
+    setIsEarning(true);
+    setStatusMessage(null);
+
+    if (typeof window === 'undefined' || !window.AdsGram) {
+      const errorMsg = "AdsGram SDK topilmadi";
       setStatusMessage({ text: errorMsg, type: 'error' });
       toastStore.error(errorMsg);
       setIsEarning(false);
@@ -38,12 +92,16 @@ const EarnButton: React.FC = () => {
     }
 
     try {
-      await (window as any).show_11548562('pop');
-      const successMsg = "Reklama ko'rildi! Coin tez orada qo'shiladi";
+      const AdController = window.AdsGram.init({ blockId: "42176" });
+      await AdController.show();
+      const successMsg = "AdsGram reklama ko'rildi! Coin tez orada qo'shiladi";
       setStatusMessage({ text: successMsg, type: 'success' });
       toastStore.success(successMsg);
-    } catch (e) {
-      const errorMsg = "Hozircha reklama topilmadi, keyinroq urinib ko'ring";
+      // Here you would typically trigger a backend call to award coins
+      // for AdsGram, or rely on its postback mechanism if configured.
+    } catch (e: any) {
+      console.error("Error displaying AdsGram ad:", e);
+      const errorMsg = `AdsGram reklama ko'rsatishda xatolik: ${e.message || e}`;
       setStatusMessage({ text: errorMsg, type: 'error' });
       toastStore.error(errorMsg);
     } finally {
@@ -52,30 +110,58 @@ const EarnButton: React.FC = () => {
   };
 
   return (
-    <div className="relative flex flex-col items-center justify-center my-4">
-      <motion.button
-        onClick={handleEarn}
-        disabled={isEarning}
-        whileTap={{ scale: 0.9 }}
-        className={`
-          w-40 h-40 rounded-full flex flex-col items-center justify-center
-          bg-gradient-to-br from-[#00FF88] to-[#00d4aa]
-          shadow-[0_0_60px_rgba(0,255,136,0.3)]
-          ${isEarning ? 'animate-pulse opacity-80 cursor-not-allowed' : ''}
-          transition-all duration-300
-        `}
-      >
-        <motion.span
-          className="text-3xl font-black text-[#0A0E14]"
-          animate={{ scale: [1, 1.1, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
+    <div className="relative flex flex-col items-center justify-center my-4 gap-4">
+      <div className="flex gap-4">
+        {/* Monetag Button */}
+        <motion.button
+          onClick={handleEarnMonetag}
+          disabled={isEarning}
+          whileTap={{ scale: 0.9 }}
+          className={`
+            w-36 h-36 rounded-full flex flex-col items-center justify-center
+            bg-gradient-to-br from-[#00FF88] to-[#00d4aa]
+            shadow-[0_0_40px_rgba(0,255,136,0.3)]
+            ${isEarning ? 'animate-pulse opacity-80 cursor-not-allowed' : ''}
+            transition-all duration-300
+          `}
         >
-          {isEarning ? '✦' : '▶'}
-        </motion.span>
-        <span className="text-xs font-bold text-[#0A0E14]/70 mt-1">
-          {isEarning ? 'LOADING...' : 'EARN'}
-        </span>
-      </motion.button>
+          <motion.span
+            className="text-2xl font-black text-[#0A0E14]"
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            {isEarning ? '✦' : '▶'}
+          </motion.span>
+          <span className="text-[10px] font-bold text-[#0A0E14]/70 mt-1">
+            MONETAG
+          </span>
+        </motion.button>
+
+        {/* AdsGram Button */}
+        <motion.button
+          onClick={handleEarnAdsGram}
+          disabled={isEarning}
+          whileTap={{ scale: 0.9 }}
+          className={`
+            w-36 h-36 rounded-full flex flex-col items-center justify-center
+            bg-gradient-to-br from-[#00BFFF] to-[#007bff]
+            shadow-[0_0_40px_rgba(0,191,255,0.3)]
+            ${isEarning ? 'animate-pulse opacity-80 cursor-not-allowed' : ''}
+            transition-all duration-300
+          `}
+        >
+          <motion.span
+            className="text-2xl font-black text-[#0A0E14]"
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            {isEarning ? '✦' : '▶'}
+          </motion.span>
+          <span className="text-[10px] font-bold text-[#0A0E14]/70 mt-1">
+            ADSGRAM
+          </span>
+        </motion.button>
+      </div>
 
       <AnimatePresence>
         {statusMessage && (

@@ -17,8 +17,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           src="https://telegram.org/js/telegram-web-app.js" 
           strategy="beforeInteractive" 
         />
+        {/* AdsGram SDK Script */}
+        <Script
+          src="https://sad.adsgram.ai/js/sad.min.js"
+          strategy="afterInteractive"
+        />
       </head>
-      <body>
+      <body className="bg-gray-900 text-white min-h-screen">
         {children}
       </body>
     </html>
