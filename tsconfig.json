@@ -14,7 +14,7 @@
       "./node_modules/@types"
     ],
     "module": "ESNext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "jsx": "preserve",
     "strict": true,
     "noEmit": true,
