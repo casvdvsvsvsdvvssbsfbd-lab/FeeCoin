@@ -9,119 +9,52 @@ import { useAppStore } from '../../lib/stores/app-store';
 import { homeScreenDataService } from './services/home-data.service';
 import { formatFC } from '../../lib/utils/format';
 import { toastStore } from '../../lib/notifications/toast-store';
-import { supabase } from '../../lib/supabase/client';
-
-// Declare Monetag and AdsGram on window interface
-declare global {
-  interface Window {
-    show_11548562?: (type?: string) => Promise<void>;
-    AdsGram?: {
-      init: (params: { blockId: string; debug?: boolean }) => {
-        show: () => Promise<void>;
-      };
-    };
-  }
-}
-
-// Add coins to balance via Supabase RPC
-const addCoinsToBalance = async (userId: string, amount: number, source: string): Promise<number | null> => {
-  const { data, error } = await supabase.rpc('add_coins', {
-    p_user_id: userId,
-    p_amount: amount,
-    p_source: source
-  });
-  
-  if (error) {
-    console.error('Error adding coins:', error);
-    throw error;
-  }
-  return data;
-};
-
-// Show Monetag ad and add coins after completion
-export const showMonetagAd = async (userId: string): Promise<boolean> => {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined' || !window.show_11548562) {
-      console.error('Monetag SDK not loaded');
-      resolve(false);
-      return;
-    }
-    
-    // SDK chaqirish
-    window.show_11548562().then(async () => {
-      // Reklama ko'rilgandan keyin
-      console.log('Monetag ad completed');
-      
-      // Backend'ga coin qo'shish so'rovi
-      try {
-        await addCoinsToBalance(userId, 50, 'monetag');
-        resolve(true);
-      } catch (e) {
-        // Agar backend ishlamasa, local state'da ko'rsatish
-        console.error('Failed to add coins via backend:', e);
-        resolve(true);
-      }
-    }).catch(() => {
-      resolve(false);
-    });
-  });
-};
-
-// Show AdsGram ad and add coins after completion
-export const showAdsGramAd = async (userId: string): Promise<boolean> => {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined' || !window.AdsGram) {
-      console.error('AdsGram SDK not loaded');
-      resolve(false);
-      return;
-    }
-    
-    const AdController = window.AdsGram.init({ blockId: "42176" });
-    
-    AdController.show().then(async () => {
-      // Reklama ko'rilgandan keyin
-      console.log('AdsGram ad completed');
-      
-      try {
-        await addCoinsToBalance(userId, 30, 'adsgram');
-        resolve(true);
-      } catch (e) {
-        console.error('Failed to add coins via backend:', e);
-        resolve(true);
-      }
-    }).catch(() => {
-      resolve(false);
-    });
-  });
-};
+import { useAds } from '../../hooks/useAds';
 
 const EarnButton: React.FC = () => {
-  const [isEarning, setIsEarning] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const auth = useAuthStore();
   const wallet = useWalletStore();
+  const { 
+    isLoading, 
+    currentAd, 
+    lastResult, 
+    energy, 
+    canShowAd, 
+    showAd, 
+    showBestAd,
+    showMonetagAd,
+    showAdsGramAd,
+    hasMonetag,
+    hasAdsGram,
+    isInTelegram
+  } = useAds();
 
   const handleEarnMonetag = async () => {
-    if (isEarning) return;
+    if (isLoading) return;
     const userId = auth.profile?.id;
     if (!userId) {
       toastStore.error("Foydalanuvchi topilmadi");
       return;
     }
     
-    setIsEarning(true);
+    if (!canShowAd) {
+      toastStore.error("Energiya yetarli emas");
+      return;
+    }
+
     setStatusMessage(null);
 
     try {
-      const success = await showMonetagAd(userId);
-      if (success) {
-        const successMsg = "Monetag reklama ko'rildi! 50 coin qo'shildi";
+      const result = await showMonetagAd();
+      if (result.success) {
+        const successMsg = `Monetag reklama ko'rildi! +${result.rewardAmount} coin`;
         setStatusMessage({ text: successMsg, type: 'success' });
         toastStore.success(successMsg);
         // Refresh wallet balance
         wallet.fetchBalance();
       } else {
-        const errorMsg = "Monetag reklama ko'rsatilmadi";
+        const errorMsg = result.error || "Monetag reklama ko'rsatilmadi";
         setStatusMessage({ text: errorMsg, type: 'error' });
         toastStore.error(errorMsg);
       }
@@ -130,40 +63,34 @@ const EarnButton: React.FC = () => {
       const errorMsg = `Monetag reklama topilmadi: ${e.message}`;
       setStatusMessage({ text: errorMsg, type: 'error' });
       toastStore.error(errorMsg);
-    } finally {
-      setIsEarning(false);
     }
   };
 
   const handleEarnAdsGram = async () => {
-    if (isEarning) return;
+    if (isLoading) return;
     const userId = auth.profile?.id;
     if (!userId) {
       toastStore.error("Foydalanuvchi topilmadi");
       return;
     }
     
-    setIsEarning(true);
-    setStatusMessage(null);
-
-    if (typeof window === 'undefined' || !window.AdsGram) {
-      const errorMsg = "AdsGram SDK topilmadi";
-      setStatusMessage({ text: errorMsg, type: 'error' });
-      toastStore.error(errorMsg);
-      setIsEarning(false);
+    if (!canShowAd) {
+      toastStore.error("Energiya yetarli emas");
       return;
     }
 
+    setStatusMessage(null);
+
     try {
-      const success = await showAdsGramAd(userId);
-      if (success) {
-        const successMsg = "AdsGram reklama ko'rildi! 30 coin qo'shildi";
+      const result = await showAdsGramAd();
+      if (result.success) {
+        const successMsg = `AdsGram reklama ko'rildi! +${result.rewardAmount} coin`;
         setStatusMessage({ text: successMsg, type: 'success' });
         toastStore.success(successMsg);
         // Refresh wallet balance
         wallet.fetchBalance();
       } else {
-        const errorMsg = "AdsGram reklama ko'rsatilmadi";
+        const errorMsg = result.error || "AdsGram reklama ko'rsatilmadi";
         setStatusMessage({ text: errorMsg, type: 'error' });
         toastStore.error(errorMsg);
       }
@@ -172,8 +99,41 @@ const EarnButton: React.FC = () => {
       const errorMsg = `AdsGram reklama ko'rsatishda xatolik: ${e.message || e}`;
       setStatusMessage({ text: errorMsg, type: 'error' });
       toastStore.error(errorMsg);
-    } finally {
-      setIsEarning(false);
+    }
+  };
+
+  const handleEarnBest = async () => {
+    if (isLoading) return;
+    const userId = auth.profile?.id;
+    if (!userId) {
+      toastStore.error("Foydalanuvchi topilmadi");
+      return;
+    }
+    
+    if (!canShowAd) {
+      toastStore.error("Energiya yetarli emas");
+      return;
+    }
+
+    setStatusMessage(null);
+
+    try {
+      const result = await showBestAd();
+      if (result.success) {
+        const successMsg = `${result.network === 'monetag' ? 'Monetag' : 'AdsGram'} reklama ko'rildi! +${result.rewardAmount} coin`;
+        setStatusMessage({ text: successMsg, type: 'success' });
+        toastStore.success(successMsg);
+        wallet.fetchBalance();
+      } else {
+        const errorMsg = result.error || "Reklama ko'rsatilmadi";
+        setStatusMessage({ text: errorMsg, type: 'error' });
+        toastStore.error(errorMsg);
+      }
+    } catch (e: any) {
+      console.error("Error displaying ad:", e);
+      const errorMsg = `Reklama ko'rsatishda xatolik: ${e.message || e}`;
+      setStatusMessage({ text: errorMsg, type: 'error' });
+      toastStore.error(errorMsg);
     }
   };
 
@@ -183,13 +143,13 @@ const EarnButton: React.FC = () => {
         {/* Monetag Button */}
         <motion.button
           onClick={handleEarnMonetag}
-          disabled={isEarning}
+          disabled={isLoading || !hasMonetag || !canShowAd}
           whileTap={{ scale: 0.9 }}
           className={`
             w-36 h-36 rounded-full flex flex-col items-center justify-center
             bg-gradient-to-br from-[#00FF88] to-[#00d4aa]
             shadow-[0_0_40px_rgba(0,255,136,0.3)]
-            ${isEarning ? 'animate-pulse opacity-80 cursor-not-allowed' : ''}
+            ${isLoading || !hasMonetag || !canShowAd ? 'animate-pulse opacity-50 cursor-not-allowed' : ''}
             transition-all duration-300
           `}
         >
@@ -198,23 +158,24 @@ const EarnButton: React.FC = () => {
             animate={{ scale: [1, 1.1, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
-            {isEarning ? '✦' : '▶'}
+            {isLoading ? '✦' : '▶'}
           </motion.span>
           <span className="text-[10px] font-bold text-[#0A0E14]/70 mt-1">
             MONETAG
           </span>
+          {!hasMonetag && <span className="text-[8px] text-white/50">SDK yo'q</span>}
         </motion.button>
 
         {/* AdsGram Button */}
         <motion.button
           onClick={handleEarnAdsGram}
-          disabled={isEarning}
+          disabled={isLoading || !hasAdsGram || !canShowAd}
           whileTap={{ scale: 0.9 }}
           className={`
             w-36 h-36 rounded-full flex flex-col items-center justify-center
             bg-gradient-to-br from-[#00BFFF] to-[#007bff]
             shadow-[0_0_40px_rgba(0,191,255,0.3)]
-            ${isEarning ? 'animate-pulse opacity-80 cursor-not-allowed' : ''}
+            ${isLoading || !hasAdsGram || !canShowAd ? 'animate-pulse opacity-50 cursor-not-allowed' : ''}
             transition-all duration-300
           `}
         >
@@ -223,13 +184,36 @@ const EarnButton: React.FC = () => {
             animate={{ scale: [1, 1.1, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
-            {isEarning ? '✦' : '▶'}
+            {isLoading ? '✦' : '▶'}
           </motion.span>
           <span className="text-[10px] font-bold text-[#0A0E14]/70 mt-1">
             ADSGRAM
           </span>
+          {!hasAdsGram && <span className="text-[8px] text-white/50">SDK yo'q</span>}
         </motion.button>
       </div>
+
+      {/* Best Ad Button (Auto-select) */}
+      {(hasMonetag || hasAdsGram) && (
+        <motion.button
+          onClick={handleEarnBest}
+          disabled={isLoading || !canShowAd}
+          whileTap={{ scale: 0.95 }}
+          className={`
+            w-full max-w-xs px-6 py-3 rounded-xl
+            bg-gradient-to-r from-[#00FF88] to-[#00BFFF]
+            shadow-[0_0_30px_rgba(0,255,136,0.2)]
+            ${isLoading || !canShowAd ? 'animate-pulse opacity-50 cursor-not-allowed' : ''}
+            transition-all duration-300
+            flex items-center justify-center gap-2
+          `}
+        >
+          <span className="text-lg">⚡</span>
+          <span className="text-sm font-bold text-[#0A0E14]">
+            {isLoading ? 'Yuklanmoqda...' : 'Eng yaxshi reklamani ko\'rish'}
+          </span>
+        </motion.button>
+      )}
 
       <AnimatePresence>
         {statusMessage && (
