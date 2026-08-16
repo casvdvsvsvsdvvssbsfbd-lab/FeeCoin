@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import { supabase, IS_OFFLINE_MODE } from '../supabase';
 import { authenticateWithTelegram } from '../telegram/init-data-auth';
+import { telegramSDK } from '../telegram/telegram-sdk';
 
 // ============================================================
 // DEV/TEST ONLY: Real Supabase test user credentials.
@@ -56,6 +57,7 @@ export interface AuthState {
   setSession: (session: any | null) => void;
   updateLastActivity: () => void;
   reset: () => void;
+  setTelegramUser: (user: any, initData: string) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -75,6 +77,36 @@ export const useAuthStore = create<AuthState>((set) => ({
     isAuthenticated: !!user,
     lastActivity: new Date(),
   }),
+
+  setTelegramUser: (user: any, initData: string) => {
+    // Generate a proper UUID from Telegram ID
+    const telegramId = user.id || 0;
+    const uuid = `00000000-0000-0000-0000-${telegramId.toString().padStart(12, '0')}`;
+    
+    set({
+      user: {
+        id: uuid,
+        firstName: user.first_name || 'User',
+        lastName: user.last_name || '',
+        username: user.username || 'user',
+        email: null,
+        telegramId: telegramId,
+        isPremium: user.is_premium || false,
+        languageCode: user.language_code || 'en',
+      },
+      profile: {
+        user_id: uuid,
+        username: user.username || 'user',
+        first_name: user.first_name || 'User',
+        last_name: user.last_name || '',
+        is_premium: user.is_premium || false,
+        language_code: user.language_code || 'en',
+      },
+      isAuthenticated: true,
+      authSource: 'telegram',
+      lastActivity: new Date(),
+    });
+  },
 
   setProfile: (profile) => set({ profile }),
 
@@ -111,26 +143,17 @@ export const useAuthStore = create<AuthState>((set) => ({
 async function tryTelegramAuth(store: AuthState): Promise<boolean> {
   try {
     const profile = await authenticateWithTelegram();
-    store.setUser({
-      id: profile.userId,
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      username: profile.username,
-      email: null,
-      telegramId: profile.telegramId,
-      isPremium: profile.isPremium,
-      languageCode: profile.languageCode,
-      startParam: profile.startParam,
-      referralCode: profile.referralCode,
-    });
-    store.setProfile({
-      user_id: profile.userId,
-      username: profile.username,
+    // Get initData from telegramSDK
+    const initData = telegramSDK.getInitDataString() || '';
+    // Use the new setTelegramUser action which generates proper UUID from Telegram ID
+    store.setTelegramUser({
+      id: profile.telegramId,
       first_name: profile.firstName,
       last_name: profile.lastName,
+      username: profile.username,
       is_premium: profile.isPremium,
       language_code: profile.languageCode,
-    });
+    }, initData);
     store.setError(null);
     (store as any).authSource = 'telegram';
     return true;

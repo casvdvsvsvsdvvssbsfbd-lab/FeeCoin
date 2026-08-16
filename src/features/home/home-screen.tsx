@@ -9,30 +9,12 @@ import { useAppStore } from '../../lib/stores/app-store';
 import { homeScreenDataService } from './services/home-data.service';
 import { formatFC } from '../../lib/utils/format';
 import { toastStore } from '../../lib/notifications/toast-store';
-import { MonetagProvider } from '../../lib/integrations/providers/monetag.provider';
-import { ProviderConfig, AdRequest } from '../../lib/integrations/types';
+import { supabase } from '../../lib/supabase/client';
 
-// Temporary Monetag config - should be loaded from a more robust configuration service
-const monetagConfig: ProviderConfig = {
-  id: 'monetag',
-  name: 'Monetag',
-  type: 'ad_network',
-  endpoint: 'https://libtl.com/sdk.js', // SDK URL, not an API endpoint
-  isEnabled: true,
-  priority: 1,
-  countries: ['US'], // Example, adjust as needed
-  languages: ['en'], // Example, adjust as needed
-  settings: { zoneId: '11548562' },
-  timeout: 10000,
-  retryAttempts: 3,
-  retryDelay: 1000,
-};
-
-const monetagProvider = new MonetagProvider(monetagConfig);
-
-// Declare AdsGram on window interface
+// Declare Monetag and AdsGram on window interface
 declare global {
   interface Window {
+    show_11548562?: (type?: string) => Promise<void>;
     AdsGram?: {
       init: (params: { blockId: string; debug?: boolean }) => {
         show: () => Promise<void>;
@@ -41,33 +23,108 @@ declare global {
   }
 }
 
+// Add coins to balance via Supabase RPC
+const addCoinsToBalance = async (userId: string, amount: number, source: string): Promise<number | null> => {
+  const { data, error } = await supabase.rpc('add_coins', {
+    p_user_id: userId,
+    p_amount: amount,
+    p_source: source
+  });
+  
+  if (error) {
+    console.error('Error adding coins:', error);
+    throw error;
+  }
+  return data;
+};
+
+// Show Monetag ad and add coins after completion
+export const showMonetagAd = async (userId: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !window.show_11548562) {
+      console.error('Monetag SDK not loaded');
+      resolve(false);
+      return;
+    }
+    
+    // SDK chaqirish
+    window.show_11548562().then(async () => {
+      // Reklama ko'rilgandan keyin
+      console.log('Monetag ad completed');
+      
+      // Backend'ga coin qo'shish so'rovi
+      try {
+        await addCoinsToBalance(userId, 50, 'monetag');
+        resolve(true);
+      } catch (e) {
+        // Agar backend ishlamasa, local state'da ko'rsatish
+        console.error('Failed to add coins via backend:', e);
+        resolve(true);
+      }
+    }).catch(() => {
+      resolve(false);
+    });
+  });
+};
+
+// Show AdsGram ad and add coins after completion
+export const showAdsGramAd = async (userId: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !window.AdsGram) {
+      console.error('AdsGram SDK not loaded');
+      resolve(false);
+      return;
+    }
+    
+    const AdController = window.AdsGram.init({ blockId: "42176" });
+    
+    AdController.show().then(async () => {
+      // Reklama ko'rilgandan keyin
+      console.log('AdsGram ad completed');
+      
+      try {
+        await addCoinsToBalance(userId, 30, 'adsgram');
+        resolve(true);
+      } catch (e) {
+        console.error('Failed to add coins via backend:', e);
+        resolve(true);
+      }
+    }).catch(() => {
+      resolve(false);
+    });
+  });
+};
+
 const EarnButton: React.FC = () => {
   const [isEarning, setIsEarning] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const auth = useAuthStore();
+  const wallet = useWalletStore();
 
   const handleEarnMonetag = async () => {
     if (isEarning) return;
+    const userId = auth.profile?.id;
+    if (!userId) {
+      toastStore.error("Foydalanuvchi topilmadi");
+      return;
+    }
+    
     setIsEarning(true);
     setStatusMessage(null);
 
-    const adRequest: AdRequest = {
-      userId: auth.profile?.id || 'dummy-user-id',
-      adType: 'pop',
-      placement: 'earn_button_monetag',
-      deviceId: 'dummy-device-id',
-      ipAddress: '127.0.0.1',
-      userAgent: navigator.userAgent,
-      countryCode: auth.profile?.country_code || 'US',
-      language: navigator.language || 'en',
-      sessionId: 'dummy-session-id',
-    };
-
     try {
-      await monetagProvider.requestAd(adRequest);
-      const successMsg = "Monetag reklama ko'rildi! Coin tez orada qo'shiladi";
-      setStatusMessage({ text: successMsg, type: 'success' });
-      toastStore.success(successMsg);
+      const success = await showMonetagAd(userId);
+      if (success) {
+        const successMsg = "Monetag reklama ko'rildi! 50 coin qo'shildi";
+        setStatusMessage({ text: successMsg, type: 'success' });
+        toastStore.success(successMsg);
+        // Refresh wallet balance
+        wallet.fetchBalance();
+      } else {
+        const errorMsg = "Monetag reklama ko'rsatilmadi";
+        setStatusMessage({ text: errorMsg, type: 'error' });
+        toastStore.error(errorMsg);
+      }
     } catch (e: any) {
       console.error("Error displaying Monetag ad:", e);
       const errorMsg = `Monetag reklama topilmadi: ${e.message}`;
@@ -80,6 +137,12 @@ const EarnButton: React.FC = () => {
 
   const handleEarnAdsGram = async () => {
     if (isEarning) return;
+    const userId = auth.profile?.id;
+    if (!userId) {
+      toastStore.error("Foydalanuvchi topilmadi");
+      return;
+    }
+    
     setIsEarning(true);
     setStatusMessage(null);
 
@@ -92,13 +155,18 @@ const EarnButton: React.FC = () => {
     }
 
     try {
-      const AdController = window.AdsGram.init({ blockId: "42176" });
-      await AdController.show();
-      const successMsg = "AdsGram reklama ko'rildi! Coin tez orada qo'shiladi";
-      setStatusMessage({ text: successMsg, type: 'success' });
-      toastStore.success(successMsg);
-      // Here you would typically trigger a backend call to award coins
-      // for AdsGram, or rely on its postback mechanism if configured.
+      const success = await showAdsGramAd(userId);
+      if (success) {
+        const successMsg = "AdsGram reklama ko'rildi! 30 coin qo'shildi";
+        setStatusMessage({ text: successMsg, type: 'success' });
+        toastStore.success(successMsg);
+        // Refresh wallet balance
+        wallet.fetchBalance();
+      } else {
+        const errorMsg = "AdsGram reklama ko'rsatilmadi";
+        setStatusMessage({ text: errorMsg, type: 'error' });
+        toastStore.error(errorMsg);
+      }
     } catch (e: any) {
       console.error("Error displaying AdsGram ad:", e);
       const errorMsg = `AdsGram reklama ko'rsatishda xatolik: ${e.message || e}`;

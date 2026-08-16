@@ -1,85 +1,52 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 serve(async (req) => {
   try {
     const url = new URL(req.url);
-    const userId = url.searchParams.get("subid") || url.searchParams.get("user_id") || url.searchParams.get("extra");
-    const payoutStr = url.searchParams.get("payout") || url.searchParams.get("reward") || "100";
+    const userId = url.searchParams.get("uid");
+    const amount = parseInt(url.searchParams.get("amount") || "0");
+    const signature = url.searchParams.get("sign");
     
-    // Monetag custom parameters usually pass subid / extra values.
-    if (!userId) {
-      return new Response(JSON.stringify({ error: "Missing user identification parameter (subid)" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
+    // Xavfsizlik tekshiruvi (signature)
+    const SECRET_KEY = Deno.env.get("MONETAG_SECRET") || "your-secret-key";
+    const expectedSignBuffer = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(`${userId}:${amount}:${SECRET_KEY}`)
+    );
+    const expectedSign = Array.from(new Uint8Array(expectedSignBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    
+    if (signature !== expectedSign) {
+      return new Response(JSON.stringify({ error: "Invalid signature" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" }
       });
     }
-
-    const rewardAmount = parseFloat(payoutStr) || 100;
-
-    // 1. Fetch user wallet
-    const { data: wallet, error: walletError } = await supabase
-      .from("wallets")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
-
-    if (walletError || !wallet) {
-      return new Response(JSON.stringify({ error: "Wallet or user not found", details: walletError }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    // 2. Add transaction record
-    const { error: txError } = await supabase.from("transactions").insert({
-      user_id: userId,
-      amount: rewardAmount,
-      type: "reward",
-      status: "completed",
-      description: "Monetag ad reward",
-      provider: "monetag",
+    
+    // Foydalanuvchi balansini yangilash
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+    
+    const { data, error } = await supabase.rpc("add_coins", {
+      p_user_id: userId,
+      p_amount: amount,
+      p_source: "monetag_reward"
     });
-
-    if (txError) {
-      return new Response(JSON.stringify({ error: "Failed to create transaction", details: txError }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    // 3. Update wallet balance
-    const updatedBalance = (wallet.available_fc || wallet.balance || 0) + rewardAmount;
-    const { error: updateError } = await supabase
-      .from("wallets")
-      .update({
-        available_fc: updatedBalance,
-        total_earned: (wallet.total_earned || 0) + rewardAmount,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", userId);
-
-    if (updateError) {
-      return new Response(JSON.stringify({ error: "Failed to update wallet balance", details: updateError }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response(JSON.stringify({ success: true, reward: rewardAmount, new_balance: updatedBalance }), {
+    
+    if (error) throw error;
+    
+    return new Response(JSON.stringify({ success: true, new_balance: data }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" }
     });
-
-  } catch (err: any) {
+  } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
+      status: 400,
+      headers: { "Content-Type": "application/json" }
     });
   }
 });

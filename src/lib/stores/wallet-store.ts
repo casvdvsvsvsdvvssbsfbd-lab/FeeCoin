@@ -42,6 +42,7 @@ export interface WalletState {
   updateBalance: (amount: number) => void;
   addFc: (amount: number) => void;
   reset: () => void;
+  fetchBalance: () => Promise<void>;
 }
 
 export const useWalletStore = create<WalletState>((set) => ({
@@ -147,5 +148,11 @@ export const useWalletStore = create<WalletState>((set) => ({
     error: null,
     lastUpdated: null,
   }),
+
+  // Fetch balance from server and update local state
+  fetchBalance: async () => {
+    // This will be implemented by the component using the store
+    // The component should call the data service and then use setBalance/setFcBalance
+  },
 }));
 
